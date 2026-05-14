@@ -1,7 +1,7 @@
 from collections import defaultdict
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
-from sqlalchemy import func, outerjoin
+from sqlalchemy import func, case
 
 from app.database import get_db
 from app.auth import verify_token
@@ -274,7 +274,9 @@ def service_utilization(db: Session = Depends(get_db), _=Depends(verify_token)):
             Service.price,
             func.count(Appointment.id).label('total_bookings'),
             func.sum(
-                func.iif(Appointment.status == 'completed', 1, 0)
+                # case() is portable across all SQL backends (SQLite, Postgres, MySQL).
+                # func.iif() works only on SQLite ≥ 3.32 and SQL Server.
+                case((Appointment.status == 'completed', 1), else_=0)
             ).label('completed'),
         )
         # isouter=True → LEFT OUTER JOIN: services with no appointments are
