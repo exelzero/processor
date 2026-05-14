@@ -14,13 +14,22 @@ import { formatDate, formatTime, formatCurrency } from '../utils/format'
  * which fires three requests in parallel so all panels load simultaneously.
  */
 export default function Dashboard() {
-  const { summary, revenueByService, upcoming, loading } = useMetrics()
+  const { summary, revenueByService, upcoming, loading, error } = useMetrics()
 
   // Completion rate: what percentage of all appointments were completed.
   // Guard against division by zero when the business is just starting out.
   const completionRate = summary && summary.total_appointments > 0
     ? `${Math.round((summary.completed_appointments / summary.total_appointments) * 100)}%`
     : '0%'
+
+  if (error) {
+    return (
+      <div className="p-8">
+        <h2 className="text-xl font-light text-stone-800 mb-6 tracking-wide">Dashboard</h2>
+        <p className="text-red-500 text-sm">{error}</p>
+      </div>
+    )
+  }
 
   return (
     <div className="p-8">
