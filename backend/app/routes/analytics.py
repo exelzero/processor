@@ -170,23 +170,46 @@ def client_insights(db: Session = Depends(get_db), _=Depends(verify_token)):
     """
     New client acquisition by month (first appointment date), skin type
     distribution, and single-visit vs returning breakdown.
+
+    CTE vs subquery:
+      Both express a named intermediate result set.  The difference is scope
+      and readability, not performance (SQLite's query planner treats them
+      identically; Postgres may materialise a CTE once and reuse it).
+
+      Subquery  — anonymous inline expression.  The DB sees it once, but the
+                  Python source buries it inside the outer query.  If you need
+                  the same result twice you must repeat the .subquery() call or
+                  alias it manually.
+
+      CTE (WITH clause) — named at the top of the SQL statement.  Every
+                  reference to the CTE name within that statement reuses the
+                  same definition.  In EXPLAIN output the CTE appears by name,
+                  making query plans easier to read.  In SQLAlchemy, .cte()
+                  returns a named subquery object whose columns are accessed
+                  the same way as .subquery().
+
+    Here first_appt_cte is referenced only once, so the practical difference
+    is clarity: the CTE name makes the intent explicit in both Python and the
+    emitted SQL ("WITH first_appt AS (...)").
     """
-    # New clients: group by month of each patient's first appointment
-    first_appt_rows = (
+    # Per-patient earliest appointment month.
+    # .cte() emits: WITH first_appt AS (SELECT ... FROM appointments GROUP BY patient_id)
+    # The outer query then references it by name rather than as an anonymous inline view.
+    first_appt_cte = (
         db.query(
             func.strftime('%Y-%m', func.min(Appointment.scheduled_at)).label('month'),  # SQLite only
-            func.count(Appointment.patient_id).label('new_clients'),
+            Appointment.patient_id,
         )
         .group_by(Appointment.patient_id)
-        .subquery()
+        .cte(name='first_appt')
     )
     growth_rows = (
         db.query(
-            first_appt_rows.c.month,
+            first_appt_cte.c.month,
             func.count().label('new_clients'),
         )
-        .group_by(first_appt_rows.c.month)
-        .order_by(first_appt_rows.c.month)
+        .group_by(first_appt_cte.c.month)
+        .order_by(first_appt_cte.c.month)
         .all()
     )
     cumulative = 0
