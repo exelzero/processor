@@ -16,6 +16,7 @@ import Dashboard from './pages/Dashboard'
 import Patients from './pages/Patients'
 import Appointments from './pages/Appointments'
 import Services from './pages/Services'
+import Analytics from './pages/Analytics'
 
 function PrivateRoute({ children }) {
   return localStorage.getItem('token') ? children : <Navigate to="/login" replace />
@@ -31,6 +32,7 @@ export default function App() {
         <Route path="patients" element={<Patients />} />
         <Route path="appointments" element={<Appointments />} />
         <Route path="services" element={<Services />} />
+        <Route path="analytics" element={<Analytics />} />
       </Route>
     </Routes>
   )
