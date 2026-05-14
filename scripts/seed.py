@@ -151,6 +151,25 @@ def schedule_day(work_day: date, n_target: int, services: list) -> list:
 
 
 def all_work_days(start: date, end: date):
+    """
+    Generator that yields each work day in [start, end] one at a time.
+
+    Using `yield` makes this a generator function — a form of cooperative
+    concurrency.  Each call to next() resumes execution from the yield point
+    rather than running the whole function to completion.  The caller and the
+    generator take turns: the generator produces one value and suspends; the
+    caller consumes it and resumes the generator for the next.
+
+    Compared to returning a list:
+    - Memory: O(1) — only the current date is held; a list would be O(n).
+    - Laziness: dates beyond what the caller consumes are never computed.
+    - Composability: can be passed directly to a for-loop or any iterator
+      consumer without materialising the full sequence first.
+
+    This cooperative yield-and-resume pattern is the foundation that Python's
+    async/await coroutines are built on — `async def` functions are syntactic
+    sugar over the same generator protocol.
+    """
     current = start
     while current <= end:
         if current.weekday() in WORK_DAYS:
