@@ -110,17 +110,18 @@ def upload_document(
         chunks.append(chunk)
     data = b"".join(chunks)
 
-    s3_key = f"patients/{patient_id}/{uuid.uuid4().hex}_{file.filename}"
+    # Sanitize the filename before embedding it in the S3 key.
+    # A crafted name like "../../other_patient/secret.pdf" would escape the
+    # intended patients/{id}/ namespace.  Strip all path separators and
+    # keep only the basename so the key stays within its prefix.
+    safe_name = re.sub(r'[/\\]', '_', file.filename).strip('.')
+    s3_key = f"patients/{patient_id}/{uuid.uuid4().hex}_{safe_name}"
     content_type = file.content_type or "application/octet-stream"
 
-    s3 = get_s3_client()
-    s3.put_object(
-        Bucket=S3_BUCKET,
-        Key=s3_key,
-        Body=data,
-        ContentType=content_type,
-    )
-
+    # Write the DB row first — if S3 put_object fails, no metadata is persisted
+    # and no orphan is created.  If the DB commit succeeds but S3 then fails the
+    # row points to a missing object; that edge case is acceptable and recoverable
+    # (retry upload), whereas the reverse (S3 object with no DB row) is invisible.
     doc = PatientDocument(
         patient_id=patient_id,
         filename=file.filename,
@@ -131,6 +132,15 @@ def upload_document(
     db.add(doc)
     db.commit()
     db.refresh(doc)
+
+    s3 = get_s3_client()
+    s3.put_object(
+        Bucket=S3_BUCKET,
+        Key=s3_key,
+        Body=data,
+        ContentType=content_type,
+    )
+
     return doc
 
 
@@ -209,8 +219,12 @@ def delete_document(
     if not doc or doc.patient_id != patient_id:
         raise HTTPException(status_code=404, detail="Document not found")
 
-    s3 = get_s3_client()
-    s3.delete_object(Bucket=S3_BUCKET, Key=doc.s3_key)
-
+    # Delete the DB row first — if S3 delete fails, the metadata row survives
+    # and the next delete attempt can retry.  The reverse (S3 deleted, DB commit
+    # fails) leaves a row that points to a missing object, breaking downloads.
+    s3_key = doc.s3_key
     db.delete(doc)
     db.commit()
+
+    s3 = get_s3_client()
+    s3.delete_object(Bucket=S3_BUCKET, Key=s3_key)

@@ -27,10 +27,16 @@ from botocore.exceptions import ClientError, EndpointConnectionError
 log = logging.getLogger(__name__)
 
 S3_ENDPOINT_URL = os.getenv("S3_ENDPOINT_URL", "http://localhost:9000")
-S3_ACCESS_KEY   = os.getenv("S3_ACCESS_KEY",   "minioadmin")
-S3_SECRET_KEY   = os.getenv("S3_SECRET_KEY",   "minioadmin")
 S3_BUCKET       = os.getenv("S3_BUCKET",       "processor-docs")
 S3_REGION       = os.getenv("S3_REGION",       "us-east-1")
+
+# No default for credentials — a misconfigured deployment should fail at startup
+# with a clear error rather than silently use well-known admin credentials.
+# For local MinIO dev, set these in a .env file or shell profile.
+S3_ACCESS_KEY = os.environ.get("S3_ACCESS_KEY")
+S3_SECRET_KEY = os.environ.get("S3_SECRET_KEY")
+if not S3_ACCESS_KEY or not S3_SECRET_KEY:
+    raise RuntimeError("S3_ACCESS_KEY and S3_SECRET_KEY must be set (use minioadmin/minioadmin for local MinIO)")
 
 # path-style addressing is required for MinIO (and most non-AWS providers).
 # AWS S3 uses virtual-hosted-style by default (bucket.s3.amazonaws.com);

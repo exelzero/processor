@@ -12,9 +12,12 @@ export function useDocuments(patientId) {
   const load = useCallback(async () => {
     if (!patientId) return
     setLoading(true)
-    const { data } = await api.get(`/patients/${patientId}/documents/`)
-    setDocuments(data)
-    setLoading(false)
+    try {
+      const { data } = await api.get(`/patients/${patientId}/documents/`)
+      setDocuments(data)
+    } finally {
+      setLoading(false)
+    }
   }, [patientId])
 
   useEffect(() => { load() }, [load])

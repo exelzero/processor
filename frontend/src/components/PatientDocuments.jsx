@@ -47,7 +47,11 @@ export default function PatientDocuments({ patientId }) {
 
   async function handleDelete(doc) {
     if (!confirm(`Delete "${doc.filename}"?`)) return
-    await remove(doc.id)
+    try {
+      await remove(doc.id)
+    } catch {
+      alert('Delete failed. Please try again.')
+    }
   }
 
   return (
