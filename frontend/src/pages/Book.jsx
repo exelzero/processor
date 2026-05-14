@@ -179,6 +179,9 @@ function DateTimeStep({ service, selectedDate, selectedTime, onDateSelect, onTim
     setLoadingDates(true)
     setAvailableDates(new Set())
     api.get('/public/available-dates', { params: { service_id: service.id, year: viewYear, month: viewMonth + 1 } })
+      // Set converts the date-string array to a hash set so calendar cells
+      // check membership in O(1) rather than O(n) per cell — up to 31 checks
+      // per render, so an array .includes() scan would be O(31n) each month change.
       .then(r => setAvailableDates(new Set(r.data)))
       .catch(() => {})
       .finally(() => setLoadingDates(false))
