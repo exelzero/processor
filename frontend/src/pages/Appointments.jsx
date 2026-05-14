@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { LayoutList, CalendarDays } from 'lucide-react'
 import { useAppointments } from '../hooks/useAppointments'
 import PageHeader from '../components/PageHeader'
@@ -20,8 +20,8 @@ import api from '../api'
  * The booking/edit SlidePanel is shared between both views — opening it
  * from the calendar pre-fills the date and time from the clicked slot.
  *
- * Patient and service dropdowns are loaded lazily on first panel open
- * to avoid unnecessary API calls on every page visit.
+ * Patient and service dropdowns are loaded on page mount so they are
+ * ready the moment any panel opens.
  */
 
 const STATUS_FILTERS = ['all', 'scheduled', 'completed', 'cancelled']
@@ -46,31 +46,30 @@ export default function Appointments() {
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
 
-  // Dropdown data — fetched once on first panel open, then reused
+  // Dropdown data — loaded on page mount so they're ready before any panel opens
   const [patients, setPatients] = useState([])
   const [services, setServices] = useState([])
-  const [dropdownsLoaded, setDropdownsLoaded] = useState(false)
 
-  async function loadDropdowns() {
-    if (dropdownsLoaded) return
-    const [p, s] = await Promise.all([api.get('/patients/'), api.get('/services/')])
-    setPatients(p.data)
-    setServices(s.data)
-    setDropdownsLoaded(true)
-  }
+  useEffect(() => {
+    Promise.all([api.get('/patients/'), api.get('/services/')])
+      .then(([p, s]) => {
+        setPatients(p.data)
+        setServices(s.data)
+      })
+      .catch(() => {})  // non-fatal — dropdowns will be empty but panel still opens
+  }, [])
 
   // --- Panel helpers ---
 
-  async function openNew(slotInfo = null) {
+  function openNew(slotInfo = null) {
     const prefilledTime = slotInfo?.start ? toDatetimeLocal(slotInfo.start.toISOString()) : ''
     setForm({ ...EMPTY_FORM, scheduled_at: prefilledTime })
     setEditId(null)
     setSaveError('')
-    await loadDropdowns()
     setPanelOpen(true)
   }
 
-  async function openEdit(appt) {
+  function openEdit(appt) {
     setForm({
       patient_id: String(appt.patient_id),
       service_id: String(appt.service_id),
@@ -80,7 +79,6 @@ export default function Appointments() {
     })
     setEditId(appt.id)
     setSaveError('')
-    await loadDropdowns()
     setPanelOpen(true)
   }
 
