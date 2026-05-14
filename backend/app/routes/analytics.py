@@ -8,6 +8,7 @@ from app.auth import verify_token
 from app.models.appointment import Appointment
 from app.models.patient import Patient
 from app.models.service import Service
+from app.utils.sequences import find_gaps
 
 router = APIRouter()
 
@@ -236,4 +237,38 @@ def client_insights(db: Session = Depends(get_db), _=Depends(verify_token)):
         'skin_types': skin_types,
         'retention': {'one_time': one_time, 'returning': returning},
         'top_clients': top_clients,
+    }
+
+
+@router.get('/sequence-gaps')
+def sequence_gaps(db: Session = Depends(get_db), _=Depends(verify_token)):
+    """
+    Audit integer ID continuity across core tables.
+
+    Uses find_gaps() — a set-membership scan — to detect missing IDs that
+    indicate soft-deleted or skipped records.  Each table's IDs are fetched
+    in a single scalar query (O(n) rows), converted to a set (O(n)), then
+    scanned over the full range (O(range_size)) with O(1) membership checks.
+
+    A gap doesn't always signal a problem (auto-increment skips on rollback
+    are normal), but large or clustered gaps can indicate bulk deletes or
+    data-import issues worth investigating.
+    """
+    appt_ids    = [r[0] for r in db.query(Appointment.id).all()]
+    patient_ids = [r[0] for r in db.query(Patient.id).all()]
+
+    appt_gaps    = find_gaps(appt_ids)
+    patient_gaps = find_gaps(patient_ids)
+
+    return {
+        'appointments': {
+            'total':    len(appt_ids),
+            'gaps':      appt_gaps,
+            'gap_count': len(appt_gaps),
+        },
+        'patients': {
+            'total':    len(patient_ids),
+            'gaps':      patient_gaps,
+            'gap_count': len(patient_gaps),
+        },
     }
