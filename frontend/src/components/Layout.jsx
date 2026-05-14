@@ -63,9 +63,11 @@ export default function Layout() {
         </div>
       </aside>
 
-      {/* Main content — flex-1 fills remaining width; overflow-hidden so each
-          page controls its own scroll rather than the browser body scrolling */}
-      <main className="flex-1 overflow-hidden flex flex-col">
+      {/* Main content — overflow-auto so pages without a DataTable (Dashboard,
+          Analytics, etc.) still scroll normally.  Pages that use DataTable
+          override this by making themselves h-full flex flex-col, which lets
+          DataTable fill the remaining space and scroll internally. */}
+      <main className="flex-1 overflow-auto flex flex-col">
         <Outlet />
       </main>
     </div>

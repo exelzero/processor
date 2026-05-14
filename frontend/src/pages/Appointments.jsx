@@ -147,13 +147,16 @@ export default function Appointments() {
         <ViewTab icon={LayoutList}   label="List"     active={activeView === 'list'}     onClick={() => setActiveView('list')} />
       </div>
 
-      {/* Calendar view */}
+      {/* Calendar view — overflow-auto lets the fixed-height calendar scroll
+          on short viewports rather than being clipped by the flex container */}
       {activeView === 'calendar' && (
-        <AppointmentCalendar
-          appointments={appointments}
-          onSelectSlot={openNew}
-          onSelectEvent={openView}
-        />
+        <div className="overflow-auto flex-1 min-h-0">
+          <AppointmentCalendar
+            appointments={appointments}
+            onSelectSlot={openNew}
+            onSelectEvent={openView}
+          />
+        </div>
       )}
 
       {/* List view */}

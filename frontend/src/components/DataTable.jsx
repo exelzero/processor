@@ -22,7 +22,11 @@ export default function DataTable({ columns, loading, empty = 'No records found'
 
   return (
     <div className="bg-white border border-stone-200 rounded-xl overflow-hidden flex flex-col flex-1 min-h-0">
-      <div className="overflow-auto flex-1">
+      {/* min-h-0 is required: without it a flex child cannot shrink below its
+          intrinsic content height, so overflow-auto never activates and all
+          rows render outside the viewport. min-h-0 breaks the intrinsic sizing
+          floor and lets the browser clip the content at the flex boundary. */}
+      <div className="overflow-auto flex-1 min-h-0">
       <table className="w-full text-sm">
         <thead className="sticky top-0 bg-white z-10">
           <tr className="border-b border-stone-100">
