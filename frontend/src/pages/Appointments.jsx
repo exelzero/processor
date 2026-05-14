@@ -59,7 +59,7 @@ export default function Appointments() {
   }
 
   async function updateStatus(id, status) {
-    await api.patch(`/appointments/${id}/status?status=${status}`)
+    await api.patch(`/appointments/${id}/status?status=${encodeURIComponent(status)}`)
     await load()
   }
 
