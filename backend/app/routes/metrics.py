@@ -7,6 +7,8 @@ from app.auth import verify_token
 from app.models.appointment import Appointment
 from app.models.patient import Patient
 from app.models.service import Service
+from app.models.sale import Sale, SaleItem
+from app.models.product import Product
 
 router = APIRouter()
 
@@ -81,3 +83,65 @@ def upcoming(db: Session = Depends(get_db), _=Depends(verify_token)):
         }
         for a in appts
     ]
+
+
+@router.get("/sales-summary")
+def sales_summary(db: Session = Depends(get_db), _=Depends(verify_token)):
+    total_transactions = db.query(func.count(Sale.id)).scalar()
+    gross_revenue = (
+        db.query(func.sum(Sale.total))
+        .filter(Sale.status.in_(['completed', 'partially_refunded']))
+        .scalar() or 0.0
+    )
+    top_products = (
+        db.query(
+            Product.name,
+            func.sum(SaleItem.quantity).label('units'),
+            func.sum(SaleItem.total).label('revenue'),
+        )
+        .join(SaleItem, SaleItem.product_id == Product.id)
+        .join(Sale, Sale.id == SaleItem.sale_id)
+        .filter(Sale.status != 'refunded')
+        .group_by(Product.id, Product.name)
+        .order_by(func.sum(SaleItem.total).desc())
+        .limit(5)
+        .all()
+    )
+    return {
+        "total_transactions": total_transactions,
+        "gross_revenue": round(float(gross_revenue), 2),
+        "top_products": [
+            {"name": r.name, "units": int(r.units), "revenue": round(float(r.revenue), 2)}
+            for r in top_products
+        ],
+    }
+
+
+@router.get("/inventory-summary")
+def inventory_summary(db: Session = Depends(get_db), _=Depends(verify_token)):
+    total_active   = db.query(func.count(Product.id)).filter(Product.active == True).scalar()
+    out_of_stock   = db.query(func.count(Product.id)).filter(Product.active == True, Product.stock_qty <= 0).scalar()
+    low_stock      = db.query(func.count(Product.id)).filter(Product.active == True, Product.stock_qty > 0, Product.stock_qty <= 3).scalar()
+    on_order_count = db.query(func.count(Product.id)).filter(Product.active == True, Product.stock_on_order > 0).scalar()
+    low_stock_items = (
+        db.query(Product)
+        .filter(Product.active == True, Product.stock_qty <= 3)
+        .order_by(Product.stock_qty.asc())
+        .limit(6)
+        .all()
+    )
+    return {
+        "total_active": total_active,
+        "out_of_stock": out_of_stock,
+        "low_stock": low_stock,
+        "on_order_count": on_order_count,
+        "low_stock_items": [
+            {
+                "name": p.name,
+                "brand": p.brand,
+                "stock_qty": p.stock_qty,
+                "stock_on_order": p.stock_on_order,
+            }
+            for p in low_stock_items
+        ],
+    }
