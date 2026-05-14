@@ -368,6 +368,13 @@ def book_appointment(request: Request, data: BookIn, db: Session = Depends(get_d
     range_start     = scheduled_at.replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(minutes=lookback_mins)
     day_end         = scheduled_at.replace(hour=23, minute=59, second=59, microsecond=999999)
 
+    # with_for_update() issues SELECT ... FOR UPDATE — a database-level row lock.
+    # Two concurrent booking requests that both pass the availability check could
+    # both proceed to INSERT without this lock (time-of-check / time-of-use race).
+    # FOR UPDATE causes the second request's SELECT to block until the first
+    # transaction commits or rolls back, then re-reads the now-committed rows
+    # before deciding whether to proceed.  This is a database-level mutex; the
+    # application-level LRU cache invalidation handles cache freshness separately.
     conflicts = (
         db.query(Appointment)
         .options(joinedload(Appointment.service))
