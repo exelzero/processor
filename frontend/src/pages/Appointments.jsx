@@ -138,7 +138,7 @@ export default function Appointments() {
     : appointments.filter(a => a.status === filterStatus)
 
   return (
-    <div className="p-8">
+    <div className="p-8 h-full flex flex-col min-h-0">
       <PageHeader title="Appointments" action="New Appointment" onAction={() => openNew()} />
 
       {/* View toggle — Calendar / List */}

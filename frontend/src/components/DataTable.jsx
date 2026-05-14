@@ -21,9 +21,10 @@ export default function DataTable({ columns, loading, empty = 'No records found'
   const isEmpty = Children.count(children) === 0
 
   return (
-    <div className="bg-white border border-stone-200 rounded-xl overflow-hidden">
+    <div className="bg-white border border-stone-200 rounded-xl overflow-hidden flex flex-col flex-1 min-h-0">
+      <div className="overflow-auto flex-1">
       <table className="w-full text-sm">
-        <thead>
+        <thead className="sticky top-0 bg-white z-10">
           <tr className="border-b border-stone-100">
             {columns.map(col => (
               <th
@@ -55,6 +56,7 @@ export default function DataTable({ columns, loading, empty = 'No records found'
           )}
         </tbody>
       </table>
+      </div>
     </div>
   )
 }
