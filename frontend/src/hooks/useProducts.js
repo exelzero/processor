@@ -33,5 +33,23 @@ export function useProducts() {
     setProducts(prev => prev.map(p => p.id === id ? { ...p, active: false } : p))
   }
 
-  return { products, loading, error, create, update, remove, reload: load }
+  async function placeOrder(id, quantity, notes) {
+    const r = await api.post(`/products/${id}/order`, { quantity, notes })
+    setProducts(prev => prev.map(p => p.id === id ? r.data : p))
+    return r.data
+  }
+
+  async function receiveOrder(id, quantity, notes) {
+    const r = await api.post(`/products/${id}/receive`, { quantity, notes })
+    setProducts(prev => prev.map(p => p.id === id ? r.data : p))
+    return r.data
+  }
+
+  async function adjust(id, delta, notes) {
+    const r = await api.post(`/products/${id}/adjust`, { delta, notes })
+    setProducts(prev => prev.map(p => p.id === id ? r.data : p))
+    return r.data
+  }
+
+  return { products, loading, error, create, update, remove, placeOrder, receiveOrder, adjust, reload: load }
 }

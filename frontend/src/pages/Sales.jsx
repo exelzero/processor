@@ -432,7 +432,7 @@ const EMPTY_PRODUCT = {
 }
 
 function ProductsTab() {
-  const { products, loading, create, update, remove } = useProducts()
+  const { products, loading, create, update, remove, placeOrder, receiveOrder, adjust } = useProducts()
 
   const [panelOpen, setPanelOpen] = useState(false)
   const [form, setForm]           = useState(EMPTY_PRODUCT)
@@ -440,6 +440,13 @@ function ProductsTab() {
   const [saving, setSaving]       = useState(false)
   const [saveError, setSaveError] = useState('')
   const [showInactive, setShowInactive] = useState(false)
+
+  // Stock action panel state
+  const [stockPanel, setStockPanel]       = useState(null)  // { mode: 'order'|'receive'|'adjust', product }
+  const [stockQty, setStockQty]           = useState('')
+  const [stockNotes, setStockNotes]       = useState('')
+  const [stockSaving, setStockSaving]     = useState(false)
+  const [stockError, setStockError]       = useState('')
 
   function openNew() {
     setForm(EMPTY_PRODUCT)
@@ -483,6 +490,30 @@ function ProductsTab() {
     await remove(id)
   }
 
+  function openStockPanel(mode, product) {
+    setStockPanel({ mode, product })
+    setStockQty('')
+    setStockNotes('')
+    setStockError('')
+  }
+
+  async function handleStockAction() {
+    const qty = parseInt(stockQty, 10)
+    if (isNaN(qty) || qty === 0) { setStockError('Enter a valid non-zero quantity.'); return }
+    setStockSaving(true)
+    setStockError('')
+    try {
+      if (stockPanel.mode === 'order')   await placeOrder(stockPanel.product.id, qty, stockNotes || null)
+      if (stockPanel.mode === 'receive') await receiveOrder(stockPanel.product.id, qty, stockNotes || null)
+      if (stockPanel.mode === 'adjust')  await adjust(stockPanel.product.id, qty, stockNotes || null)
+      setStockPanel(null)
+    } catch (err) {
+      setStockError(err.response?.data?.detail ?? 'Something went wrong.')
+    } finally {
+      setStockSaving(false)
+    }
+  }
+
   const visible = showInactive ? products : products.filter(p => p.active)
 
   return (
@@ -516,6 +547,8 @@ function ProductsTab() {
               <Th>Category</Th>
               <Th right>Price</Th>
               <Th right>Cost</Th>
+              <Th right>In Stock</Th>
+              <Th right>On Order</Th>
               <Th>Status</Th>
               <Th></Th>
             </tr>
@@ -531,6 +564,20 @@ function ProductsTab() {
                 <Td muted>{p.category}</Td>
                 <Td right>{formatCurrency(p.price)}</Td>
                 <Td right muted>{p.cost ? formatCurrency(p.cost) : '—'}</Td>
+                <Td right>
+                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                    p.stock_qty <= 0 ? 'bg-red-50 text-red-500'
+                    : p.stock_qty <= 3 ? 'bg-amber-50 text-amber-600'
+                    : 'bg-emerald-50 text-emerald-600'
+                  }`}>
+                    {p.stock_qty}
+                  </span>
+                </Td>
+                <Td right>
+                  {p.stock_on_order > 0
+                    ? <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-sky-50 text-sky-600">{p.stock_on_order}</span>
+                    : <span className="text-stone-300 text-xs">—</span>}
+                </Td>
                 <Td>
                   <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${p.active ? 'bg-emerald-50 text-emerald-600' : 'bg-stone-100 text-stone-400'}`}>
                     {p.active ? 'Active' : 'Inactive'}
@@ -539,9 +586,12 @@ function ProductsTab() {
                 <Td>
                   <div className="flex items-center gap-2 justify-end">
                     <button onClick={() => openEdit(p)} className="text-xs text-stone-400 hover:text-stone-700 transition-colors">Edit</button>
-                    {p.active && (
+                    {p.active && (<>
+                      <button onClick={() => openStockPanel('order', p)} className="text-xs text-stone-400 hover:text-sky-600 transition-colors">Order</button>
+                      {p.stock_on_order > 0 && <button onClick={() => openStockPanel('receive', p)} className="text-xs text-stone-400 hover:text-emerald-600 transition-colors">Receive</button>}
+                      <button onClick={() => openStockPanel('adjust', p)} className="text-xs text-stone-400 hover:text-amber-600 transition-colors">Adjust</button>
                       <button onClick={() => handleDelete(p.id)} className="text-xs text-stone-400 hover:text-red-500 transition-colors">Deactivate</button>
-                    )}
+                    </>)}
                   </div>
                 </Td>
               </tr>
@@ -600,6 +650,75 @@ function ProductsTab() {
             {saving ? 'Saving…' : editId ? 'Save Changes' : 'Add Product'}
           </button>
         </form>
+      </SlidePanel>
+
+      {/* Stock action panel */}
+      <SlidePanel
+        open={!!stockPanel}
+        onClose={() => setStockPanel(null)}
+        title={
+          stockPanel?.mode === 'order'   ? `Order Stock — ${stockPanel.product.name}`   :
+          stockPanel?.mode === 'receive' ? `Receive Order — ${stockPanel.product.name}` :
+                                           `Adjust Stock — ${stockPanel.product.name}`
+        }
+      >
+        {stockPanel && (
+          <div className="space-y-4">
+            {/* Current stock summary */}
+            <div className="flex gap-4 p-3 bg-stone-50 rounded-lg text-sm">
+              <div className="text-center">
+                <div className="font-medium text-stone-800">{stockPanel.product.stock_qty}</div>
+                <div className="text-stone-400 text-xs">In Stock</div>
+              </div>
+              <div className="text-center">
+                <div className="font-medium text-sky-600">{stockPanel.product.stock_on_order}</div>
+                <div className="text-stone-400 text-xs">On Order</div>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-stone-500 uppercase tracking-wider mb-1.5">
+                {stockPanel.mode === 'adjust' ? 'Delta (+ add / − remove)' : 'Quantity'}
+              </label>
+              <input
+                type="number"
+                value={stockQty}
+                onChange={e => setStockQty(e.target.value)}
+                min={stockPanel.mode === 'adjust' ? undefined : 1}
+                className="w-full border border-stone-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-stone-300"
+                placeholder={stockPanel.mode === 'adjust' ? 'e.g. −2 for damage' : 'e.g. 12'}
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-stone-500 uppercase tracking-wider mb-1.5">Notes (optional)</label>
+              <textarea
+                value={stockNotes}
+                onChange={e => setStockNotes(e.target.value)}
+                rows={2}
+                className="w-full border border-stone-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-stone-300 resize-none"
+                placeholder={
+                  stockPanel.mode === 'order'   ? 'Supplier, PO number…' :
+                  stockPanel.mode === 'receive' ? 'Delivery ref…' :
+                                                  'Reason for adjustment…'
+                }
+              />
+            </div>
+
+            {stockError && <p className="text-sm text-red-500">{stockError}</p>}
+
+            <button
+              onClick={handleStockAction}
+              disabled={stockSaving}
+              className="w-full py-2.5 bg-stone-800 text-white text-sm rounded-lg hover:bg-stone-700 disabled:opacity-50 transition-colors"
+            >
+              {stockSaving ? 'Saving…' :
+                stockPanel.mode === 'order'   ? 'Place Order' :
+                stockPanel.mode === 'receive' ? 'Mark Received' :
+                                                'Apply Adjustment'}
+            </button>
+          </div>
+        )}
       </SlidePanel>
     </>
   )

@@ -22,6 +22,7 @@ from app.models.product import Product
 from app.models.promotion import Promotion
 from app.models.sale import Sale, SaleItem, SaleReturn
 from app.models.expense import Expense
+from app.models.stock_movement import StockMovement
 
 Base.metadata.create_all(bind=engine)
 
@@ -220,6 +221,7 @@ def seed(force: bool = False):
             return
 
         if force:
+            db.query(StockMovement).delete()
             db.query(SaleReturn).delete()
             db.query(SaleItem).delete()
             db.query(Sale).delete()
@@ -322,10 +324,31 @@ def seed(force: bool = False):
 
         products = []
         for name, brand, desc, cat, price, cost, sku in PRODUCTS:
+            qty = random.randint(3, 18)
+            on_order = random.choice([0, 0, 0, random.randint(3, 10)])
             p = Product(name=name, brand=brand, description=desc, category=cat,
-                        price=price, cost=cost, sku=sku, active=True)
+                        price=price, cost=cost, sku=sku, active=True,
+                        stock_qty=qty, stock_on_order=on_order)
             db.add(p)
             products.append(p)
+        db.flush()
+        # Log opening stock and any on-order positions as movements
+        for p in products:
+            db.add(StockMovement(
+                product_id=p.id,
+                movement_type="adjustment",
+                qty_delta=p.stock_qty,
+                on_order_delta=0,
+                notes="Opening stock",
+            ))
+            if p.stock_on_order > 0:
+                db.add(StockMovement(
+                    product_id=p.id,
+                    movement_type="order_placed",
+                    qty_delta=0,
+                    on_order_delta=p.stock_on_order,
+                    notes="Order placed with supplier",
+                ))
         db.commit()
         print(f"Seeded {len(products)} products.")
 

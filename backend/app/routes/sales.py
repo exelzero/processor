@@ -10,6 +10,7 @@ from app.auth import verify_token
 from app.models.sale import Sale, SaleItem, SaleReturn
 from app.models.product import Product
 from app.models.promotion import Promotion
+from app.models.stock_movement import StockMovement
 
 router = APIRouter()
 
@@ -245,6 +246,17 @@ def create_sale(data: SaleIn, db: Session = Depends(get_db), _=Depends(verify_to
     for item in sale_items:
         item.sale_id = sale.id
         db.add(item)
+        # Deduct from on-shelf stock; allow negative (oversell) so the sale
+        # isn't blocked — the UI shows a low-stock warning instead.
+        product = db.get(Product, item.product_id)
+        product.stock_qty -= item.quantity
+        db.add(StockMovement(
+            product_id=item.product_id,
+            movement_type="sale",
+            qty_delta=-item.quantity,
+            on_order_delta=0,
+            reference_id=sale.id,
+        ))
     db.commit()
 
     sale = _load_sale(db, sale.id)
@@ -282,7 +294,22 @@ def create_return(sale_id: int, data: ReturnIn, db: Session = Depends(get_db), _
     db.add(ret)
 
     total_returned = already_returned + data.amount
-    sale.status = 'refunded' if total_returned >= sale.total else 'partially_refunded'
+    is_full_refund = total_returned >= sale.total
+    sale.status = 'refunded' if is_full_refund else 'partially_refunded'
+
+    # On a full refund put all items back into stock.
+    # Partial returns are financial-only — we don't know which units came back.
+    if is_full_refund:
+        for item in sale.items:
+            product = db.get(Product, item.product_id)
+            product.stock_qty += item.quantity
+            db.add(StockMovement(
+                product_id=item.product_id,
+                movement_type="return",
+                qty_delta=item.quantity,
+                on_order_delta=0,
+                reference_id=sale.id,
+            ))
     db.commit()
 
     sale = _load_sale(db, sale_id)
