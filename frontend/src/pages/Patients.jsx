@@ -80,7 +80,7 @@ export default function Patients() {
   )
 
   return (
-    <div className="p-8">
+    <div className="p-8 h-full flex flex-col min-h-0">
       <PageHeader title="Patients" action="New Patient" onAction={openNew} />
 
       {/* Search bar */}

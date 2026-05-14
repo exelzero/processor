@@ -27,7 +27,7 @@ export default function Layout() {
   }
 
   return (
-    <div className="min-h-screen bg-stone-50 flex">
+    <div className="h-screen bg-stone-50 flex overflow-hidden">
       {/* Sidebar */}
       <aside className="w-56 bg-white border-r border-stone-200 flex flex-col shrink-0">
         <div className="px-6 py-6 border-b border-stone-100">
@@ -63,8 +63,11 @@ export default function Layout() {
         </div>
       </aside>
 
-      {/* Main content */}
-      <main className="flex-1 overflow-auto">
+      {/* Main content — overflow-auto so pages without a DataTable (Dashboard,
+          Analytics, etc.) still scroll normally.  Pages that use DataTable
+          override this by making themselves h-full flex flex-col, which lets
+          DataTable fill the remaining space and scroll internally. */}
+      <main className="flex-1 overflow-auto flex flex-col">
         <Outlet />
       </main>
     </div>
