@@ -1,60 +1,80 @@
-import { useEffect, useState } from 'react'
-import { Plus, X } from 'lucide-react'
-import api from '../api'
+import { useState } from 'react'
+import { useAppointments } from '../hooks/useAppointments'
+import { usePatients } from '../hooks/usePatients'
+import { useServices } from '../hooks/useServices'
+import PageHeader from '../components/PageHeader'
+import SlidePanel from '../components/SlidePanel'
+import DataTable from '../components/DataTable'
+import StatusBadge from '../components/StatusBadge'
+import { formatDate, formatTime, formatCurrency, toDatetimeLocal } from '../utils/format'
 
-const STATUS_COLORS = {
-  scheduled: 'bg-blue-50 text-blue-600',
-  completed: 'bg-emerald-50 text-emerald-600',
-  cancelled: 'bg-stone-100 text-stone-400',
+/**
+ * Appointments page — full list of all appointments with status management.
+ *
+ * Status can be changed inline from the table row (no panel needed), which
+ * is the most common action Oksana takes — marking a session as completed
+ * after the client leaves. Creating or editing an appointment opens the
+ * SlidePanel with patient + service selectors.
+ *
+ * The page loads three hooks in parallel: appointments, patients (for the
+ * dropdown), and services (for the dropdown and price display).
+ */
+
+const STATUS_FILTERS = ['all', 'scheduled', 'completed', 'cancelled']
+
+const EMPTY_FORM = {
+  patient_id: '', service_id: '', scheduled_at: '', status: 'scheduled', notes: '',
 }
 
-const empty = { patient_id: '', service_id: '', scheduled_at: '', status: 'scheduled', notes: '' }
-
 export default function Appointments() {
-  const [appointments, setAppointments] = useState([])
-  const [patients, setPatients] = useState([])
-  const [services, setServices] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [showForm, setShowForm] = useState(false)
-  const [form, setForm] = useState(empty)
+  const { appointments, loading, create, update, updateStatus, remove } = useAppointments()
+  const { patients } = usePatients()
+  const { services } = useServices()
+
+  const [filterStatus, setFilterStatus] = useState('all')
+  const [panelOpen, setPanelOpen] = useState(false)
+  const [form, setForm] = useState(EMPTY_FORM)
   const [editId, setEditId] = useState(null)
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
-  const [filterStatus, setFilterStatus] = useState('all')
 
-  useEffect(() => {
-    load()
-    api.get('/patients/').then(r => setPatients(r.data))
-    api.get('/services/').then(r => setServices(r.data))
-  }, [])
+  // --- Panel helpers ---
 
-  async function load() {
-    setLoading(true)
-    const { data } = await api.get('/appointments/')
-    setAppointments(data)
-    setLoading(false)
+  function openNew() {
+    setForm(EMPTY_FORM)
+    setEditId(null)
+    setSaveError('')
+    setPanelOpen(true)
   }
 
-  function openNew() { setForm(empty); setEditId(null); setSaveError(''); setShowForm(true) }
-  function openEdit(a) {
-    const dt = new Date(a.scheduled_at)
-    const pad = n => String(n).padStart(2, '0')
-    const local = `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}T${pad(dt.getHours())}:${pad(dt.getMinutes())}`
-    setForm({ patient_id: String(a.patient_id), service_id: String(a.service_id), scheduled_at: local, status: a.status, notes: a.notes || '' })
-    setEditId(a.id)
-    setShowForm(true)
+  function openEdit(appt) {
+    setForm({
+      patient_id: String(appt.patient_id),
+      service_id: String(appt.service_id),
+      scheduled_at: toDatetimeLocal(appt.scheduled_at),
+      status: appt.status,
+      notes: appt.notes || '',
+    })
+    setEditId(appt.id)
+    setSaveError('')
+    setPanelOpen(true)
   }
 
-  async function save(e) {
+  // --- CRUD ---
+
+  async function handleSave(e) {
     e.preventDefault()
     setSaving(true)
     setSaveError('')
-    const payload = { ...form, patient_id: parseInt(form.patient_id), service_id: parseInt(form.service_id), scheduled_at: new Date(form.scheduled_at).toISOString() }
+    const payload = {
+      ...form,
+      patient_id: parseInt(form.patient_id),
+      service_id: parseInt(form.service_id),
+      scheduled_at: new Date(form.scheduled_at).toISOString(),
+    }
     try {
-      if (editId) await api.put(`/appointments/${editId}`, payload)
-      else await api.post('/appointments/', payload)
-      await load()
-      setShowForm(false)
+      editId ? await update(editId, payload) : await create(payload)
+      setPanelOpen(false)
     } catch (err) {
       setSaveError(err.response?.data?.detail ?? 'Something went wrong. Please try again.')
     } finally {
@@ -62,134 +82,150 @@ export default function Appointments() {
     }
   }
 
-  async function updateStatus(id, status) {
-    await api.patch(`/appointments/${id}/status?status=${encodeURIComponent(status)}`)
-    await load()
-  }
-
-  async function remove(id) {
+  async function handleDelete(id) {
     if (!confirm('Delete this appointment?')) return
-    await api.delete(`/appointments/${id}`)
-    await load()
+    await remove(id)
   }
 
-  const filtered = filterStatus === 'all' ? appointments : appointments.filter(a => a.status === filterStatus)
+  // Client-side status filter — all other filtering (date range, patient) can
+  // be added here without touching the backend
+  const filtered = filterStatus === 'all'
+    ? appointments
+    : appointments.filter(a => a.status === filterStatus)
 
   return (
     <div className="p-8">
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-xl font-light text-stone-800 tracking-wide">Appointments</h2>
-        <button onClick={openNew} className="flex items-center gap-2 bg-stone-800 text-white text-sm px-4 py-2 rounded-lg hover:bg-stone-700 transition-colors">
-          <Plus size={14} /> New Appointment
-        </button>
-      </div>
+      <PageHeader title="Appointments" action="New Appointment" onAction={openNew} />
 
+      {/* Status filter tabs */}
       <div className="flex gap-2 mb-5">
-        {['all', 'scheduled', 'completed', 'cancelled'].map(s => (
-          <button key={s} onClick={() => setFilterStatus(s)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors capitalize ${filterStatus === s ? 'bg-stone-800 text-white' : 'bg-white border border-stone-200 text-stone-500 hover:border-stone-300'}`}>
+        {STATUS_FILTERS.map(s => (
+          <button
+            key={s}
+            onClick={() => setFilterStatus(s)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors capitalize ${
+              filterStatus === s
+                ? 'bg-stone-800 text-white'
+                : 'bg-white border border-stone-200 text-stone-500 hover:border-stone-300'
+            }`}
+          >
             {s}
           </button>
         ))}
       </div>
 
-      <div className="bg-white border border-stone-200 rounded-xl overflow-hidden">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-stone-100">
-              <th className="text-left px-5 py-3.5 text-xs font-medium text-stone-400 uppercase tracking-wider">Date & Time</th>
-              <th className="text-left px-5 py-3.5 text-xs font-medium text-stone-400 uppercase tracking-wider">Patient</th>
-              <th className="text-left px-5 py-3.5 text-xs font-medium text-stone-400 uppercase tracking-wider">Service</th>
-              <th className="text-left px-5 py-3.5 text-xs font-medium text-stone-400 uppercase tracking-wider">Price</th>
-              <th className="text-left px-5 py-3.5 text-xs font-medium text-stone-400 uppercase tracking-wider">Status</th>
-              <th className="px-5 py-3.5" />
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map(a => (
-              <tr key={a.id} className="border-b border-stone-50 hover:bg-stone-50 transition-colors">
-                <td className="px-5 py-3.5 text-stone-500">
-                  <span className="text-stone-700 font-medium">{new Date(a.scheduled_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
-                  <span className="text-stone-400 text-xs block">{new Date(a.scheduled_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</span>
-                </td>
-                <td className="px-5 py-3.5 text-stone-700 font-medium">{a.patient_name}</td>
-                <td className="px-5 py-3.5 text-stone-500">{a.service_name}</td>
-                <td className="px-5 py-3.5 text-stone-500">${a.service_price}</td>
-                <td className="px-5 py-3.5">
-                  <select value={a.status} onChange={e => updateStatus(a.id, e.target.value)}
-                    className={`text-xs font-medium px-2.5 py-1 rounded-full border-0 ${STATUS_COLORS[a.status] || 'bg-stone-100 text-stone-500'} cursor-pointer focus:outline-none`}>
-                    <option value="scheduled">Scheduled</option>
-                    <option value="completed">Completed</option>
-                    <option value="cancelled">Cancelled</option>
-                  </select>
-                </td>
-                <td className="px-5 py-3.5 text-right space-x-3">
-                  <button onClick={() => openEdit(a)} className="text-stone-400 hover:text-stone-700 text-xs">Edit</button>
-                  <button onClick={() => remove(a.id)} className="text-stone-400 hover:text-red-500 text-xs">Delete</button>
-                </td>
-              </tr>
-            ))}
-            {loading && (
-              <tr><td colSpan={6} className="px-5 py-8 text-center text-stone-300 text-sm">Loading…</td></tr>
-            )}
-            {!loading && filtered.length === 0 && (
-              <tr><td colSpan={6} className="px-5 py-8 text-center text-stone-300 text-sm">No appointments found</td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+      <DataTable
+        columns={['Date & Time', 'Patient', 'Service', 'Price', 'Status']}
+        loading={loading}
+        empty="No appointments found"
+      >
+        {filtered.map(a => (
+          <tr key={a.id} className="border-b border-stone-50 hover:bg-stone-50 transition-colors">
+            <td className="px-5 py-3.5">
+              <span className="text-stone-700 font-medium block">{formatDate(a.scheduled_at)}</span>
+              <span className="text-stone-400 text-xs">{formatTime(a.scheduled_at)}</span>
+            </td>
+            <td className="px-5 py-3.5 text-stone-700 font-medium">{a.patient_name}</td>
+            <td className="px-5 py-3.5 text-stone-500">{a.service_name}</td>
+            <td className="px-5 py-3.5 text-stone-500">{formatCurrency(a.service_price)}</td>
+            <td className="px-5 py-3.5">
+              {/* Inline status change — most common action, no panel required */}
+              <StatusBadge
+                status={a.status}
+                asSelect
+                onChange={status => updateStatus(a.id, status)}
+              />
+            </td>
+            <td className="px-5 py-3.5 text-right space-x-3">
+              <button onClick={() => openEdit(a)} className="text-stone-400 hover:text-stone-700 text-xs">Edit</button>
+              <button onClick={() => handleDelete(a.id)} className="text-stone-400 hover:text-red-500 text-xs">Delete</button>
+            </td>
+          </tr>
+        ))}
+      </DataTable>
 
-      {showForm && (
-        <div className="fixed inset-0 bg-black/20 z-40 flex justify-end" onClick={e => e.target === e.currentTarget && setShowForm(false)}>
-          <div className="bg-white w-full max-w-md h-full overflow-auto shadow-xl p-8">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="font-medium text-stone-800">{editId ? 'Edit Appointment' : 'New Appointment'}</h3>
-              <button onClick={() => setShowForm(false)}><X size={18} className="text-stone-400" /></button>
-            </div>
-            <form onSubmit={save} className="space-y-4">
-              <div>
-                <label className="block text-xs font-medium text-stone-500 uppercase tracking-wider mb-1.5">Patient</label>
-                <select value={form.patient_id} onChange={e => setForm(f => ({...f, patient_id: e.target.value}))} required
-                  className="w-full border border-stone-200 rounded-lg px-3 py-2.5 text-sm text-stone-700 focus:outline-none focus:ring-2 focus:ring-stone-300">
-                  <option value="">Select patient…</option>
-                  {patients.map(p => <option key={p.id} value={p.id}>{p.first_name} {p.last_name}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-stone-500 uppercase tracking-wider mb-1.5">Service</label>
-                <select value={form.service_id} onChange={e => setForm(f => ({...f, service_id: e.target.value}))} required
-                  className="w-full border border-stone-200 rounded-lg px-3 py-2.5 text-sm text-stone-700 focus:outline-none focus:ring-2 focus:ring-stone-300">
-                  <option value="">Select service…</option>
-                  {services.map(s => <option key={s.id} value={s.id}>{s.name} — ${s.price}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-stone-500 uppercase tracking-wider mb-1.5">Date & Time</label>
-                <input type="datetime-local" value={form.scheduled_at} onChange={e => setForm(f => ({...f, scheduled_at: e.target.value}))} required
-                  className="w-full border border-stone-200 rounded-lg px-3 py-2.5 text-sm text-stone-700 focus:outline-none focus:ring-2 focus:ring-stone-300" />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-stone-500 uppercase tracking-wider mb-1.5">Status</label>
-                <select value={form.status} onChange={e => setForm(f => ({...f, status: e.target.value}))}
-                  className="w-full border border-stone-200 rounded-lg px-3 py-2.5 text-sm text-stone-700 focus:outline-none focus:ring-2 focus:ring-stone-300">
-                  <option value="scheduled">Scheduled</option>
-                  <option value="completed">Completed</option>
-                  <option value="cancelled">Cancelled</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-stone-500 uppercase tracking-wider mb-1.5">Notes</label>
-                <textarea value={form.notes} onChange={e => setForm(f => ({...f, notes: e.target.value}))} rows={3}
-                  className="w-full border border-stone-200 rounded-lg px-3 py-2.5 text-sm text-stone-700 focus:outline-none focus:ring-2 focus:ring-stone-300 resize-none" />
-              </div>
-              {saveError && <p className="text-red-500 text-sm">{saveError}</p>}
-              <button type="submit" disabled={saving} className="w-full bg-stone-800 text-white rounded-lg py-2.5 text-sm font-medium hover:bg-stone-700 transition-colors disabled:opacity-50 mt-2">
-                {saving ? 'Saving…' : editId ? 'Update Appointment' : 'Book Appointment'}
-              </button>
-            </form>
+      {/* Create / Edit panel */}
+      <SlidePanel
+        open={panelOpen}
+        onClose={() => setPanelOpen(false)}
+        title={editId ? 'Edit Appointment' : 'New Appointment'}
+      >
+        <form onSubmit={handleSave} className="space-y-4">
+          <div>
+            <label className="block text-xs font-medium text-stone-500 uppercase tracking-wider mb-1.5">Patient</label>
+            <select
+              value={form.patient_id}
+              onChange={e => setForm(f => ({ ...f, patient_id: e.target.value }))}
+              required
+              className="w-full border border-stone-200 rounded-lg px-3 py-2.5 text-sm text-stone-700 focus:outline-none focus:ring-2 focus:ring-stone-300"
+            >
+              <option value="">Select patient…</option>
+              {patients.map(p => (
+                <option key={p.id} value={p.id}>{p.first_name} {p.last_name}</option>
+              ))}
+            </select>
           </div>
-        </div>
-      )}
+
+          <div>
+            <label className="block text-xs font-medium text-stone-500 uppercase tracking-wider mb-1.5">Service</label>
+            <select
+              value={form.service_id}
+              onChange={e => setForm(f => ({ ...f, service_id: e.target.value }))}
+              required
+              className="w-full border border-stone-200 rounded-lg px-3 py-2.5 text-sm text-stone-700 focus:outline-none focus:ring-2 focus:ring-stone-300"
+            >
+              <option value="">Select service…</option>
+              {services.map(s => (
+                <option key={s.id} value={s.id}>{s.name} — {formatCurrency(s.price)}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-stone-500 uppercase tracking-wider mb-1.5">Date & Time</label>
+            <input
+              type="datetime-local"
+              value={form.scheduled_at}
+              onChange={e => setForm(f => ({ ...f, scheduled_at: e.target.value }))}
+              required
+              className="w-full border border-stone-200 rounded-lg px-3 py-2.5 text-sm text-stone-700 focus:outline-none focus:ring-2 focus:ring-stone-300"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-stone-500 uppercase tracking-wider mb-1.5">Status</label>
+            <select
+              value={form.status}
+              onChange={e => setForm(f => ({ ...f, status: e.target.value }))}
+              className="w-full border border-stone-200 rounded-lg px-3 py-2.5 text-sm text-stone-700 focus:outline-none focus:ring-2 focus:ring-stone-300"
+            >
+              <option value="scheduled">Scheduled</option>
+              <option value="completed">Completed</option>
+              <option value="cancelled">Cancelled</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-stone-500 uppercase tracking-wider mb-1.5">Notes</label>
+            <textarea
+              value={form.notes}
+              onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
+              rows={3}
+              className="w-full border border-stone-200 rounded-lg px-3 py-2.5 text-sm text-stone-700 focus:outline-none focus:ring-2 focus:ring-stone-300 resize-none"
+            />
+          </div>
+
+          {saveError && <p className="text-red-500 text-sm">{saveError}</p>}
+
+          <button
+            type="submit"
+            disabled={saving}
+            className="w-full bg-stone-800 text-white rounded-lg py-2.5 text-sm font-medium hover:bg-stone-700 transition-colors disabled:opacity-50 mt-2"
+          >
+            {saving ? 'Saving…' : editId ? 'Update Appointment' : 'Book Appointment'}
+          </button>
+        </form>
+      </SlidePanel>
     </div>
   )
 }
