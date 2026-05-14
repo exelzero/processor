@@ -1,3 +1,4 @@
+import { useId } from 'react'
 import { BarChart, Bar, AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, CartesianGrid } from 'recharts'
 import { Users, CalendarCheck, DollarSign, TrendingUp } from 'lucide-react'
 import { useMetrics } from '../hooks/useMetrics'
@@ -11,7 +12,7 @@ import { formatDate, formatTime, formatCurrency } from '../utils/format'
  * and a list of the next 10 upcoming appointments.
  *
  * All data comes from the /api/metrics/* endpoints via the useMetrics hook,
- * which fires three requests in parallel so all panels load simultaneously.
+ * which fires four requests in parallel so all panels load simultaneously.
  */
 const MONTH_LABELS = {
   '01': 'Jan', '02': 'Feb', '03': 'Mar', '04': 'Apr',
@@ -21,10 +22,11 @@ const MONTH_LABELS = {
 
 export default function Dashboard() {
   const { summary, revenueByService, revenueByMonth, upcoming, loading, error } = useMetrics()
+  const gradientId = useId()
 
   const monthChartData = revenueByMonth.map(r => ({
     ...r,
-    label: MONTH_LABELS[r.month.split('-')[1]] ?? r.month,
+    label: r.month ? (MONTH_LABELS[r.month.split('-')[1]] ?? r.month) : 'Unknown',
   }))
 
   // Completion rate: what percentage of all appointments were completed.
@@ -73,7 +75,7 @@ export default function Dashboard() {
           <ResponsiveContainer width="100%" height={220}>
             <AreaChart data={monthChartData} margin={{ top: 4, right: 8, left: -10, bottom: 0 }}>
               <defs>
-                <linearGradient id="revenueGradient" x1="0" y1="0" x2="0" y2="1">
+                <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%"  stopColor="#292524" stopOpacity={0.15} />
                   <stop offset="95%" stopColor="#292524" stopOpacity={0} />
                 </linearGradient>
@@ -92,7 +94,7 @@ export default function Dashboard() {
                 tickFormatter={v => formatCurrency(v)}
               />
               <Tooltip
-                formatter={(v, _name, entry) => [formatCurrency(v), `${entry.payload.count} appts`]}
+                formatter={(v, _name, entry) => [`${formatCurrency(v)} · ${entry.payload.count} appts`, 'Revenue']}
                 contentStyle={{ borderRadius: 8, border: '1px solid #e7e5e4', fontSize: 12 }}
               />
               <Area
@@ -100,7 +102,7 @@ export default function Dashboard() {
                 dataKey="revenue"
                 stroke="#292524"
                 strokeWidth={2}
-                fill="url(#revenueGradient)"
+                fill={`url(#${gradientId})`}
                 dot={{ r: 3, fill: '#292524', strokeWidth: 0 }}
                 activeDot={{ r: 5, fill: '#292524', strokeWidth: 0 }}
               />

@@ -48,7 +48,7 @@ def revenue_by_service(db: Session = Depends(get_db), _=Depends(verify_token)):
 def revenue_by_month(db: Session = Depends(get_db), _=Depends(verify_token)):
     rows = (
         db.query(
-            func.strftime('%Y-%m', Appointment.scheduled_at).label('month'),
+            func.strftime('%Y-%m', Appointment.scheduled_at).label('month'),  # SQLite only
             func.sum(Service.price).label('revenue'),
             func.count(Appointment.id).label('count'),
         )
