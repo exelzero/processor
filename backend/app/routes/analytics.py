@@ -254,6 +254,11 @@ def sequence_gaps(db: Session = Depends(get_db), _=Depends(verify_token)):
     are normal), but large or clustered gaps can indicate bulk deletes or
     data-import issues worth investigating.
     """
+    # List comprehensions — eager, O(n) memory, returns a concrete list whose
+    # len() is O(1).  A generator expression (r[0] for r in ...) would be lazy
+    # (O(1) memory) but can only be iterated once and has no len(), which would
+    # require a second pass to count.  len() on the list is used twice below, so
+    # a list is the right choice here.
     appt_ids    = [r[0] for r in db.query(Appointment.id).all()]
     patient_ids = [r[0] for r in db.query(Patient.id).all()]
 
