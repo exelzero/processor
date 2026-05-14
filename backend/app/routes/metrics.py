@@ -10,6 +10,7 @@ from app.models.patient import Patient
 from app.models.service import Service
 from app.models.sale import Sale, SaleItem
 from app.models.product import Product
+from app.models.expense import Expense
 
 router = APIRouter()
 
@@ -31,11 +32,16 @@ def summary(db: Session = Depends(get_db), _=Depends(verify_token)):
         .scalar() or 0.0
     )
 
+    total_expenses = float(
+        db.query(func.sum(Expense.amount)).scalar() or 0.0
+    )
+
     return {
         "total_patients": total_patients,
         "total_appointments": total_appointments,
         "completed_appointments": completed,
         "total_revenue": round(service_revenue + product_revenue, 2),
+        "total_expenses": round(total_expenses, 2),
     }
 
 
@@ -75,15 +81,26 @@ def revenue_by_month(db: Session = Depends(get_db), _=Depends(verify_token)):
         .all()
     )
 
-    by_month = defaultdict(lambda: {'revenue': 0.0, 'count': 0})
+    expense_rows = (
+        db.query(
+            func.substr(cast(Expense.expense_date, String), 1, 7).label('month'),
+            func.sum(Expense.amount).label('expenses'),
+        )
+        .group_by(func.substr(cast(Expense.expense_date, String), 1, 7))
+        .all()
+    )
+
+    by_month = defaultdict(lambda: {'revenue': 0.0, 'expenses': 0.0, 'count': 0})
     for r in appt_rows:
         by_month[r.month]['revenue'] += float(r.revenue)
         by_month[r.month]['count'] += r.count
     for r in sale_rows:
         by_month[r.month]['revenue'] += float(r.revenue)
+    for r in expense_rows:
+        by_month[r.month]['expenses'] += float(r.expenses)
 
     return [
-        {'month': m, 'revenue': round(d['revenue'], 2), 'count': d['count']}
+        {'month': m, 'revenue': round(d['revenue'], 2), 'expenses': round(d['expenses'], 2), 'count': d['count']}
         for m, d in sorted(by_month.items())
     ]
 

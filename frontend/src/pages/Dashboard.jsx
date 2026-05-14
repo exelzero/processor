@@ -1,19 +1,9 @@
-import { useId } from 'react'
-import { BarChart, Bar, AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, CartesianGrid } from 'recharts'
-import { Users, CalendarCheck, DollarSign, TrendingUp } from 'lucide-react'
+import { BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, Cell, CartesianGrid } from 'recharts'
+import { Users, CalendarCheck, DollarSign, Receipt } from 'lucide-react'
 import { useMetrics } from '../hooks/useMetrics'
 import StatCard from '../components/StatCard'
 import { formatDate, formatTime, formatCurrency } from '../utils/format'
 
-/**
- * Dashboard page — the first screen after login.
- *
- * Shows a summary row of four KPIs, a revenue-by-service bar chart,
- * and a list of the next 10 upcoming appointments.
- *
- * All data comes from the /api/metrics/* endpoints via the useMetrics hook,
- * which fires four requests in parallel so all panels load simultaneously.
- */
 const MONTH_LABELS = {
   '01': 'Jan', '02': 'Feb', '03': 'Mar', '04': 'Apr',
   '05': 'May', '06': 'Jun', '07': 'Jul', '08': 'Aug',
@@ -22,18 +12,11 @@ const MONTH_LABELS = {
 
 export default function Dashboard() {
   const { summary, revenueByService, revenueByMonth, upcoming, loading, error } = useMetrics()
-  const gradientId = useId()
 
   const monthChartData = revenueByMonth.map(r => ({
     ...r,
     label: r.month ? (MONTH_LABELS[r.month.split('-')[1]] ?? r.month) : 'Unknown',
   }))
-
-  // Completion rate: what percentage of all appointments were completed.
-  // Guard against division by zero when the business is just starting out.
-  const completionRate = summary && summary.total_appointments > 0
-    ? `${Math.round((summary.completed_appointments / summary.total_appointments) * 100)}%`
-    : '0%'
 
   if (error) {
     return (
@@ -63,23 +46,28 @@ export default function Dashboard() {
           value={loading ? '—' : formatCurrency(summary?.total_revenue)}
           sub="services + product sales"
         />
-        <StatCard icon={TrendingUp} label="Completion Rate" value={loading ? '—' : completionRate} />
+        <StatCard
+          icon={Receipt}
+          label="Expenses"
+          value={loading ? '—' : formatCurrency(summary?.total_expenses)}
+          sub={
+            !loading && summary
+              ? summary.total_revenue >= summary.total_expenses
+                ? `+${formatCurrency(summary.total_revenue - summary.total_expenses)} net`
+                : `−${formatCurrency(summary.total_expenses - summary.total_revenue)} deficit`
+              : undefined
+          }
+        />
       </div>
 
-      {/* Revenue by month — full-width area chart */}
+      {/* Revenue vs Expenses by month — two-line comparison chart */}
       <div className="bg-white border border-stone-200 rounded-xl p-6 mb-6">
         <h3 className="text-sm font-medium text-stone-500 uppercase tracking-wider mb-4">
-          Revenue by Month
+          Revenue vs Expenses
         </h3>
         {monthChartData.length > 0 ? (
-          <ResponsiveContainer width="100%" height={220}>
-            <AreaChart data={monthChartData} margin={{ top: 4, right: 8, left: -10, bottom: 0 }}>
-              <defs>
-                <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%"  stopColor="#292524" stopOpacity={0.15} />
-                  <stop offset="95%" stopColor="#292524" stopOpacity={0} />
-                </linearGradient>
-              </defs>
+          <ResponsiveContainer width="100%" height={240}>
+            <LineChart data={monthChartData} margin={{ top: 4, right: 8, left: -10, bottom: 0 }}>
               <CartesianGrid vertical={false} stroke="#f5f5f4" />
               <XAxis
                 dataKey="label"
@@ -94,22 +82,35 @@ export default function Dashboard() {
                 tickFormatter={v => formatCurrency(v)}
               />
               <Tooltip
-                formatter={(v, _name, entry) => [`${formatCurrency(v)} · ${entry.payload.count} appts`, 'Revenue']}
+                formatter={(v, name) => [formatCurrency(v), name === 'revenue' ? 'Revenue' : 'Expenses']}
                 contentStyle={{ borderRadius: 8, border: '1px solid #e7e5e4', fontSize: 12 }}
               />
-              <Area
+              <Legend
+                iconType="circle"
+                iconSize={8}
+                formatter={name => name === 'revenue' ? 'Revenue' : 'Expenses'}
+                wrapperStyle={{ fontSize: 12, paddingTop: 12 }}
+              />
+              <Line
                 type="monotone"
                 dataKey="revenue"
                 stroke="#292524"
                 strokeWidth={2}
-                fill={`url(#${gradientId})`}
                 dot={{ r: 3, fill: '#292524', strokeWidth: 0 }}
-                activeDot={{ r: 5, fill: '#292524', strokeWidth: 0 }}
+                activeDot={{ r: 5, strokeWidth: 0 }}
               />
-            </AreaChart>
+              <Line
+                type="monotone"
+                dataKey="expenses"
+                stroke="#ef4444"
+                strokeWidth={2}
+                dot={{ r: 3, fill: '#ef4444', strokeWidth: 0 }}
+                activeDot={{ r: 5, strokeWidth: 0 }}
+              />
+            </LineChart>
           </ResponsiveContainer>
         ) : (
-          <p className="text-stone-300 text-sm">{loading ? 'Loading…' : 'No completed appointments yet'}</p>
+          <p className="text-stone-300 text-sm">{loading ? 'Loading…' : 'No data yet'}</p>
         )}
       </div>
 
@@ -143,7 +144,6 @@ export default function Dashboard() {
                   contentStyle={{ borderRadius: 8, border: '1px solid #e7e5e4', fontSize: 12 }}
                 />
                 <Bar dataKey="revenue" radius={[4, 4, 0, 0]}>
-                  {/* Highlight the top-earning service in dark, rest in light grey */}
                   {revenueByService.map((_, i) => (
                     <Cell key={i} fill={i === 0 ? '#292524' : '#d6d3d1'} />
                   ))}
@@ -180,7 +180,6 @@ export default function Dashboard() {
           )}
         </div>
       </div>
-
     </div>
   )
 }
