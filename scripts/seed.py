@@ -85,23 +85,28 @@ ALLERGIES   = ["None", "None", "None", "Retinol", "Fragrance", "Sulfates",
 # ---------------------------------------------------------------------------
 
 # Tue–Sat work week (Mon=0, Sat=5)
-WORK_DAYS   = {1, 2, 3, 4, 5}
-HOURS_START = 9
-HOURS_END   = 19
+WORK_DAYS      = {1, 2, 3, 4, 5}
+HOURS_START    = 9
+HOURS_END      = 19
+BUFFER_MINUTES = 10   # cleanup/turnover time between appointments
 
 TODAY = date(2026, 5, 13)
 
 
 def appointments_per_day(d: date) -> int:
+    """
+    Returns a realistic target count for a solo esthetician.
+    Hard ceiling ~9: avg service 54 min + 10 min buffer = 64 min/slot in 600 min day.
+    """
     m = d.month
     if m <= 4:
-        return random.randint(8, 14)   # Jan–Apr: growing practice
+        return random.randint(5, 8)   # Jan–Apr: growing practice
     if m == 5:
-        return random.randint(25, 32)  # May: peak season
+        return random.randint(7, 9)   # May: peak season
     if m == 6:
-        return random.randint(8, 14)   # June: mild
-    # July: sporadic
-    return random.choices([0, 1, 2, 3, 4, 5], weights=[15, 20, 25, 20, 12, 8])[0]
+        return random.randint(5, 8)   # June: mild
+    # July: sporadic summer slowdown
+    return random.choices([0, 1, 2, 3, 4], weights=[20, 25, 25, 18, 12])[0]
 
 
 def status_for(scheduled: datetime) -> str:
@@ -111,10 +116,35 @@ def status_for(scheduled: datetime) -> str:
     return "scheduled"
 
 
-def random_time_on(d: date) -> datetime:
-    hour   = random.randint(HOURS_START, HOURS_END - 1)
-    minute = random.choice([0, 15, 30, 45])
-    return datetime(d.year, d.month, d.day, hour, minute)
+def schedule_day(work_day: date, n_target: int, services: list) -> list:
+    """
+    Schedule up to n_target non-overlapping appointments on work_day.
+    Picks service first (to know duration), then finds a free slot via
+    interval collision detection. Returns list of (start_datetime, service).
+    """
+    booked = []   # [(start_dt, end_dt), ...]
+    result = []
+    work_end = datetime(work_day.year, work_day.month, work_day.day, HOURS_END, 0)
+
+    for _ in range(n_target * 12):   # generous attempts to fill the target
+        if len(result) >= n_target:
+            break
+
+        service = random.choice(services)
+        hour    = random.randint(HOURS_START, HOURS_END - 1)
+        minute  = random.choice([0, 15, 30, 45])
+        start   = datetime(work_day.year, work_day.month, work_day.day, hour, minute)
+        end     = start + timedelta(minutes=service.duration_minutes + BUFFER_MINUTES)
+
+        if end > work_end:
+            continue
+        if any(start < b_end and end > b_start for b_start, b_end in booked):
+            continue
+
+        booked.append((start, end))
+        result.append((start, service))
+
+    return result
 
 
 def all_work_days(start: date, end: date):
@@ -203,20 +233,14 @@ def seed(force: bool = False):
 
         for work_day in all_work_days(start_date, end_date):
             n = appointments_per_day(work_day)
-            used_slots = set()
-            for _ in range(n):
-                for _attempt in range(15):
-                    scheduled = random_time_on(work_day)
-                    slot_key  = (scheduled.hour, scheduled.minute)
-                    if slot_key not in used_slots:
-                        used_slots.add(slot_key)
-                        break
+            day_slots = schedule_day(work_day, n, services)
 
+            for start, service in day_slots:
                 appt = Appointment(
                     patient_id=random.choice(patients).id,
-                    service_id=random.choice(services).id,
-                    scheduled_at=scheduled,
-                    status=status_for(scheduled),
+                    service_id=service.id,
+                    scheduled_at=start,
+                    status=status_for(start),
                     notes=None,
                 )
                 db.add(appt)
