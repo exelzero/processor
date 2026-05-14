@@ -84,6 +84,12 @@ def _has_slots(target_date: date, service_duration: int, busy: list, today: date
             earliest += timedelta(minutes=SLOT_MINUTES - remainder)
         open_dt = max(open_dt, earliest.replace(second=0, microsecond=0))
 
+    # O(s × n) where s = candidate slots in the day, n = busy intervals.
+    # Single-practitioner bounds: s ≤ 20 (10 h ÷ 30 min grid), n ≤ ~9.
+    # The inner any() short-circuits on first conflict so best case is O(s).
+    # Total work is bounded by a small constant — no smarter algorithm needed
+    # at this scale.  An interval tree would give O(s log n) but would add
+    # complexity with no measurable gain here.
     candidate = open_dt
     while candidate + slot_duration <= close_dt:
         candidate_end = candidate + slot_duration
@@ -149,7 +155,11 @@ def get_available_dates(
     if check_start > check_end:
         return []
 
-    # Load all non-cancelled appointments for the date range.
+    # O(1) queries for the entire month — one SELECT covers every day in the
+    # range.  The naive alternative (one query per day) would be O(d) round
+    # trips where d ≤ 31.  joinedload(Appointment.service) folds the service
+    # data into the same JOIN so accessing appt.service.duration_minutes inside
+    # the loop never fires an additional query (eliminates the N+1 problem).
     # Widen range_start by max service duration so a late appointment from the
     # previous day that bleeds into check_start is included in the busy intervals.
     max_duration  = db.query(Service).with_entities(Service.duration_minutes).order_by(Service.duration_minutes.desc()).first()

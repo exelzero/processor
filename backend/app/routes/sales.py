@@ -82,7 +82,20 @@ class ReturnIn(BaseModel):
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _load_sale(db: Session, sale_id: int) -> Sale:
-    """Fetch a sale with all relationships eagerly loaded (avoids N+1)."""
+    """
+    Fetch a sale with all relationships eagerly loaded.
+
+    Without eager loading, accessing sale.patient, sale.promotion, or iterating
+    sale.items inside _enrich() would trigger one extra SELECT per relationship
+    per call — O(r) additional queries where r = number of relationships.
+    Across a list of n sales that becomes O(r × n) round trips (the N+1 problem).
+
+    joinedload uses a SQL JOIN — all data arrives in one query, O(1) round trips.
+    selectinload uses a follow-up IN (...) query per collection, also O(1) round
+    trips, but avoids the row-multiplication that a JOIN produces for to-many
+    relationships (e.g. a sale with 5 items would repeat the sale columns 5 times
+    in a JOIN result).
+    """
     sale = (
         db.query(Sale)
         .options(
