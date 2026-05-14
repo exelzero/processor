@@ -1,4 +1,5 @@
 import re
+from collections import defaultdict
 from datetime import datetime, date, time, timedelta
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -27,15 +28,6 @@ def _normalize_phone(raw: str) -> str:
     """Strip all non-digit characters so format variants match the same record."""
     return re.sub(r'\D', '', raw)
 
-
-def _is_valid_slot(dt: datetime) -> bool:
-    """Return True if dt falls within business hours and on a SLOT_MINUTES boundary."""
-    if dt.hour < OPEN_HOUR or dt.hour >= CLOSE_HOUR:
-        return False
-    if dt.minute % SLOT_MINUTES != 0 or dt.second != 0 or dt.microsecond != 0:
-        return False
-    slot_end = dt + timedelta(minutes=SLOT_MINUTES)  # minimum duration check
-    return slot_end.replace(hour=dt.hour, minute=dt.minute) <= datetime.combine(dt.date(), time(CLOSE_HOUR, 0))
 
 
 def _busy_intervals(db: Session, target_date: date):
@@ -109,7 +101,9 @@ def list_services(db: Session = Depends(get_db)):
 # ── Available dates for a month ──────────────────────────────────────────────
 
 @router.get('/available-dates')
+@limiter.limit('60/minute')
 def get_available_dates(
+    request:    Request,
     service_id: int,
     year:       int = Query(...),
     month:      int = Query(..., ge=1, le=12),
@@ -137,9 +131,13 @@ def get_available_dates(
     if check_start > check_end:
         return []
 
-    # Load all non-cancelled appointments for the entire date range in one query
-    range_start = datetime.combine(check_start, time.min)
-    range_end   = datetime.combine(check_end, time(23, 59, 59, 999999))
+    # Load all non-cancelled appointments for the date range.
+    # Widen range_start by max service duration so a late appointment from the
+    # previous day that bleeds into check_start is included in the busy intervals.
+    max_duration  = db.query(Service).with_entities(Service.duration_minutes).order_by(Service.duration_minutes.desc()).first()
+    lookback_mins = (max_duration[0] + BUFFER_MINUTES) if max_duration else 120
+    range_start   = datetime.combine(check_start, time.min) - timedelta(minutes=lookback_mins)
+    range_end     = datetime.combine(check_end, time(23, 59, 59, 999999))
     all_appts   = (
         db.query(Appointment)
         .options(joinedload(Appointment.service))
@@ -151,8 +149,6 @@ def get_available_dates(
         .all()
     )
 
-    # Group busy intervals by date
-    from collections import defaultdict
     busy_by_date = defaultdict(list)
     for appt in all_appts:
         if appt.service is None:
@@ -174,7 +170,9 @@ def get_available_dates(
 # ── Availability ──────────────────────────────────────────────────────────────
 
 @router.get('/availability')
+@limiter.limit('60/minute')
 def get_availability(
+    request:    Request,
     service_id: int,
     date:       date = Query(...),
     db:         Session = Depends(get_db),
@@ -253,17 +251,21 @@ def book_appointment(request: Request, data: BookIn, db: Session = Depends(get_d
     if scheduled_at < datetime.now() + timedelta(hours=MIN_NOTICE_HOURS):
         raise HTTPException(status_code=400, detail='Please book at least 1 hour in advance')
 
-    # Re-validate slot is still free
-    slot_end  = scheduled_at + timedelta(minutes=service.duration_minutes + BUFFER_MINUTES)
-    day_start = scheduled_at.replace(hour=0, minute=0, second=0, microsecond=0)
-    day_end   = scheduled_at.replace(hour=23, minute=59, second=59, microsecond=999999)
+    # Re-validate slot is still free.
+    # Widen range_start by max service duration to catch appointments from the
+    # previous day whose buffer period bleeds into today.
+    slot_end        = scheduled_at + timedelta(minutes=service.duration_minutes + BUFFER_MINUTES)
+    max_dur         = db.query(Service).with_entities(Service.duration_minutes).order_by(Service.duration_minutes.desc()).first()
+    lookback_mins   = (max_dur[0] + BUFFER_MINUTES) if max_dur else 120
+    range_start     = scheduled_at.replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(minutes=lookback_mins)
+    day_end         = scheduled_at.replace(hour=23, minute=59, second=59, microsecond=999999)
 
     conflicts = (
         db.query(Appointment)
         .options(joinedload(Appointment.service))
-        .with_for_update(skip_locked=True)
+        .with_for_update()
         .filter(
-            Appointment.scheduled_at >= day_start,
+            Appointment.scheduled_at >= range_start,
             Appointment.scheduled_at <= day_end,
             Appointment.status != 'cancelled',
         )
@@ -278,7 +280,9 @@ def book_appointment(request: Request, data: BookIn, db: Session = Depends(get_d
         if scheduled_at < b_end and slot_end > b_start:
             raise HTTPException(status_code=409, detail='This time slot is no longer available. Please choose another.')
 
-    # Phone-based patient lookup (normalize format before matching)
+    # Phone-based patient lookup (normalize format before matching).
+    # Phone is the identity key — if a number matches an existing patient
+    # the booking is attached to that record regardless of name/email provided.
     phone_clean = _normalize_phone(data.phone)
     patient     = db.query(Patient).filter(Patient.phone == phone_clean).first()
     is_new      = patient is None

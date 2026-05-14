@@ -330,7 +330,7 @@ function DateTimeStep({ service, selectedDate, selectedTime, onDateSelect, onTim
 // ── Step 3: Patient details ────────────────────────────────────────────────────
 
 function DetailsStep({ form, onChange, onBack, onNext }) {
-  const valid = form.first_name && form.last_name && form.phone && form.email
+  const valid = form.first_name.trim() && form.last_name.trim() && form.phone.trim() && form.email.trim()
 
   function handleSubmit(e) {
     e.preventDefault()
@@ -350,17 +350,18 @@ function DetailsStep({ form, onChange, onBack, onNext }) {
       </div>
 
       <div className="grid grid-cols-2 gap-4">
-        <Input label="First name" required value={form.first_name} onChange={e => onChange('first_name', e.target.value)} placeholder="Jane" />
-        <Input label="Last name"  required value={form.last_name}  onChange={e => onChange('last_name', e.target.value)}  placeholder="Smith" />
+        <Input label="First name" required maxLength={100} value={form.first_name} onChange={e => onChange('first_name', e.target.value)} placeholder="Jane" />
+        <Input label="Last name"  required maxLength={100} value={form.last_name}  onChange={e => onChange('last_name', e.target.value)}  placeholder="Smith" />
       </div>
-      <Input label="Phone number" required type="tel" value={form.phone} onChange={e => onChange('phone', e.target.value)} placeholder="(555) 000-0000" />
-      <Input label="Email address" required type="email" value={form.email} onChange={e => onChange('email', e.target.value)} placeholder="jane@example.com" />
+      <Input label="Phone number" required type="tel" maxLength={30} value={form.phone} onChange={e => onChange('phone', e.target.value)} placeholder="(555) 000-0000" />
+      <Input label="Email address" required type="email" maxLength={255} value={form.email} onChange={e => onChange('email', e.target.value)} placeholder="jane@example.com" />
       <div>
         <label className="block text-xs font-medium text-stone-500 mb-1.5">Notes <span className="font-normal text-stone-400">(optional)</span></label>
         <textarea
           value={form.notes}
           onChange={e => onChange('notes', e.target.value)}
           rows={3}
+          maxLength={1000}
           placeholder="Allergies, skin concerns, anything you'd like us to know…"
           className="w-full border border-stone-200 rounded-xl px-4 py-3 text-sm text-stone-800 focus:outline-none focus:ring-2 focus:ring-stone-300 placeholder:text-stone-300 resize-none"
         />
