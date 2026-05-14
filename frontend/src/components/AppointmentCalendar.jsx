@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useCallback } from 'react'
 import { Calendar, dateFnsLocalizer } from 'react-big-calendar'
 import { format, parse, startOfWeek, getDay } from 'date-fns'
 import { enUS } from 'date-fns/locale/en-US'
@@ -24,7 +24,7 @@ import './AppointmentCalendar.css'
 const localizer = dateFnsLocalizer({
   format,
   parse,
-  startOfWeek: () => startOfWeek(new Date(), { weekStartsOn: 0 }),
+  startOfWeek: (date) => startOfWeek(date, { weekStartsOn: 0 }),
   getDay,
   locales: { 'en-US': enUS },
 })
@@ -40,6 +40,17 @@ const CATEGORY_COLORS = {
 
 function colorForCategory(category) {
   return CATEGORY_COLORS[category] ?? CATEGORY_COLORS.Other
+}
+
+function EventComponent({ event }) {
+  return (
+    <div className="leading-tight">
+      <span className="font-medium">{event.title}</span>
+      {event.resource?.service_name && (
+        <span className="block opacity-75 text-xs">{event.resource.service_name}</span>
+      )}
+    </div>
+  )
 }
 
 /**
@@ -61,8 +72,7 @@ function toCalendarEvent(appt) {
 export default function AppointmentCalendar({ appointments, onSelectSlot, onSelectEvent }) {
   const events = useMemo(() => appointments.map(toCalendarEvent), [appointments])
 
-  // Apply category-based colors to each event block
-  function eventPropGetter(event) {
+  const eventPropGetter = useCallback((event) => {
     const { bg, border, text } = colorForCategory(event.resource?.service_category)
     return {
       style: {
@@ -74,22 +84,10 @@ export default function AppointmentCalendar({ appointments, onSelectSlot, onSele
         padding: '2px 6px',
       },
     }
-  }
-
-  // Show "Patient — Service" as the event label inside the block
-  function EventComponent({ event }) {
-    return (
-      <div className="leading-tight">
-        <span className="font-medium">{event.title}</span>
-        {event.resource?.service_name && (
-          <span className="block opacity-75 text-xs">{event.resource.service_name}</span>
-        )}
-      </div>
-    )
-  }
+  }, [])
 
   return (
-    <div className="bg-white border border-stone-200 rounded-xl overflow-hidden" style={{ height: 680 }}>
+    <div className="bg-white border border-stone-200 rounded-xl overflow-hidden" style={{ height: 680 }} aria-label="Appointments calendar">
       <Calendar
         localizer={localizer}
         events={events}

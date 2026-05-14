@@ -277,6 +277,7 @@ export default function Appointments() {
 function ViewTab({ icon: Icon, label, active, onClick }) {
   return (
     <button
+      type="button"
       onClick={onClick}
       className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
         active ? 'bg-white text-stone-800 shadow-sm' : 'text-stone-500 hover:text-stone-700'
