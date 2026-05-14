@@ -61,17 +61,16 @@ export default function Appointments() {
 
   // --- Panel helpers ---
 
-  function openNew(slotInfo = null) {
-    // When called from the calendar, slotInfo.start is the clicked time slot
+  async function openNew(slotInfo = null) {
     const prefilledTime = slotInfo?.start ? toDatetimeLocal(slotInfo.start.toISOString()) : ''
     setForm({ ...EMPTY_FORM, scheduled_at: prefilledTime })
     setEditId(null)
     setSaveError('')
-    loadDropdowns()
+    await loadDropdowns()
     setPanelOpen(true)
   }
 
-  function openEdit(appt) {
+  async function openEdit(appt) {
     setForm({
       patient_id: String(appt.patient_id),
       service_id: String(appt.service_id),
@@ -81,7 +80,7 @@ export default function Appointments() {
     })
     setEditId(appt.id)
     setSaveError('')
-    loadDropdowns()
+    await loadDropdowns()
     setPanelOpen(true)
   }
 
