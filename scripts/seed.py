@@ -22,137 +22,167 @@ from app.models.appointment import Appointment
 Base.metadata.create_all(bind=engine)
 
 # ---------------------------------------------------------------------------
-# Reference data
+# Services
 # ---------------------------------------------------------------------------
 
 SERVICES = [
-    ("HydraFacial",               "Deep cleansing hydration facial with extraction",         185.0, 60, "Facial"),
-    ("Signature Facial",          "European-style custom facial for all skin types",          120.0, 50, "Facial"),
-    ("Chemical Peel",             "Resurfacing peel targeting pigmentation and texture",      150.0, 45, "Treatment"),
-    ("Microdermabrasion",         "Mechanical exfoliation for smooth, radiant skin",          130.0, 40, "Treatment"),
-    ("Nano-Needling",             "Micro-channeling to boost collagen and product absorption",200.0, 60, "Advanced"),
-    ("Exosome Regenerative Facial","Cutting-edge regenerative therapy with growth factors",   350.0, 75, "Advanced"),
-    ("Acne Treatment",            "Targeted deep-cleansing and calming protocol",             110.0, 50, "Treatment"),
-    ("Anti-Aging Facial",         "Firming and lifting treatment with peptide infusion",      160.0, 60, "Facial"),
-    ("Consultation",              "Personalized skin analysis and treatment planning",         50.0, 30, "Consultation"),
-    ("Salmon DNA Facial",         "Regenerative PDRN therapy for skin renewal",              280.0, 65, "Advanced"),
+    ("HydraFacial",                "Deep cleansing hydration facial with extraction",          185.0, 60, "Facial"),
+    ("Signature Facial",           "European-style custom facial for all skin types",           120.0, 50, "Facial"),
+    ("Chemical Peel",              "Resurfacing peel targeting pigmentation and texture",       150.0, 45, "Treatment"),
+    ("Microdermabrasion",          "Mechanical exfoliation for smooth, radiant skin",           130.0, 40, "Treatment"),
+    ("Nano-Needling",              "Micro-channeling to boost collagen and product absorption", 200.0, 60, "Advanced"),
+    ("Exosome Regenerative Facial","Cutting-edge regenerative therapy with growth factors",     350.0, 75, "Advanced"),
+    ("Acne Treatment",             "Targeted deep-cleansing and calming protocol",              110.0, 50, "Treatment"),
+    ("Anti-Aging Facial",          "Firming and lifting treatment with peptide infusion",       160.0, 60, "Facial"),
+    ("Consultation",               "Personalized skin analysis and treatment planning",          50.0, 30, "Consultation"),
+    ("Salmon DNA Facial",          "Regenerative PDRN therapy for skin renewal",               280.0, 65, "Advanced"),
 ]
 
-PATIENTS = [
-    # (first, last, email, phone, skin_type, allergies)
-    ("Sofia",      "Martinez",  "sofia.martinez@email.com",  "310-555-0101", "Normal",      "None"),
-    ("Emma",       "Johnson",   "emma.j@email.com",          "310-555-0102", "Dry",         "Retinol"),
-    ("Olivia",     "Chen",      "olivia.chen@email.com",     "424-555-0103", "Oily",        "None"),
-    ("Ava",        "Williams",  "ava.w@email.com",           "310-555-0104", "Combination", "Fragrance"),
-    ("Isabella",   "Brown",     "isa.brown@email.com",       "424-555-0105", "Sensitive",   "Sulfates"),
-    ("Mia",        "Davis",     "mia.davis@email.com",       "310-555-0106", "Normal",      "None"),
-    ("Charlotte",  "Garcia",    "char.garcia@email.com",     "424-555-0107", "Dry",         "None"),
-    ("Amelia",     "Wilson",    "amelia.w@email.com",        "310-555-0108", "Oily",        "Benzoyl peroxide"),
-    ("Harper",     "Moore",     "harper.m@email.com",        "424-555-0109", "Combination", "None"),
-    ("Evelyn",     "Taylor",    "evelyn.t@email.com",        "310-555-0110", "Sensitive",   "AHA acids"),
-    ("Abigail",    "Anderson",  "abigail.a@email.com",       "424-555-0111", "Normal",      "None"),
-    ("Emily",      "Thomas",    "emily.t@email.com",         "310-555-0112", "Dry",         "None"),
-    ("Elizabeth",  "Jackson",   "liz.j@email.com",           "424-555-0113", "Oily",        "None"),
-    ("Camila",     "White",     "camila.w@email.com",        "310-555-0114", "Combination", "Fragrance"),
-    ("Luna",       "Harris",    "luna.h@email.com",          "424-555-0115", "Sensitive",   "None"),
-    ("Penelope",   "Martin",    "pen.m@email.com",           "310-555-0116", "Normal",      "Retinol"),
-    ("Riley",      "Thompson",  "riley.t@email.com",         "424-555-0117", "Dry",         "None"),
-    ("Zoey",       "Garcia",    "zoey.g@email.com",          "310-555-0118", "Oily",        "None"),
-    ("Nora",       "Martinez",  "nora.m@email.com",          "424-555-0119", "Combination", "None"),
-    ("Lily",       "Robinson",  "lily.r@email.com",          "310-555-0120", "Sensitive",   "Sulfates"),
-    ("Eleanor",    "Clark",     "eleanor.c@email.com",       "424-555-0121", "Normal",      "None"),
-    ("Hannah",     "Rodriguez", "hannah.r@email.com",        "310-555-0122", "Dry",         "None"),
-    ("Lillian",    "Lewis",     "lillian.l@email.com",       "424-555-0123", "Oily",        "None"),
-    ("Addison",    "Lee",       "addison.l@email.com",       "310-555-0124", "Combination", "AHA acids"),
-    ("Aubrey",     "Walker",    "aubrey.w@email.com",        "424-555-0125", "Sensitive",   "None"),
-    ("Scarlett",   "Hall",      "scarlett.h@email.com",      "310-555-0126", "Normal",      "None"),
-    ("Victoria",   "Allen",     "victoria.a@email.com",      "424-555-0127", "Dry",         "None"),
-    ("Madison",    "Young",     "madison.y@email.com",       "310-555-0128", "Oily",        "Fragrance"),
-    ("Grace",      "Hernandez", "grace.h@email.com",         "424-555-0129", "Combination", "None"),
-    ("Chloe",      "King",      "chloe.k@email.com",         "310-555-0130", "Sensitive",   "Benzoyl peroxide"),
-    ("Layla",      "Wright",    "layla.w@email.com",         "424-555-0131", "Normal",      "None"),
-    ("Hannah",     "Lopez",     "hannah.l2@email.com",       "310-555-0132", "Dry",         "None"),
-    ("Samantha",   "Hill",      "sam.h@email.com",           "424-555-0133", "Oily",        "None"),
-    ("Natalie",    "Scott",     "natalie.s@email.com",       "310-555-0134", "Combination", "Sulfates"),
-    ("Zoe",        "Green",     "zoe.g@email.com",           "424-555-0135", "Sensitive",   "None"),
-    ("Audrey",     "Adams",     "audrey.a@email.com",        "310-555-0136", "Normal",      "Retinol"),
-    ("Leah",       "Baker",     "leah.b@email.com",          "424-555-0137", "Dry",         "None"),
-    ("Ariana",     "Gonzalez",  "ariana.g@email.com",        "310-555-0138", "Oily",        "None"),
-    ("Allison",    "Nelson",    "allison.n@email.com",       "424-555-0139", "Combination", "AHA acids"),
-    ("Gabriella",  "Carter",    "gabby.c@email.com",         "310-555-0140", "Sensitive",   "None"),
-    ("Anna",       "Mitchell",  "anna.m@email.com",          "424-555-0141", "Normal",      "None"),
-    ("Savannah",   "Perez",     "savannah.p@email.com",      "310-555-0142", "Dry",         "None"),
-    ("Audrey",     "Roberts",   "audrey.r@email.com",        "424-555-0143", "Oily",        "Fragrance"),
-    ("Brooklyn",   "Turner",    "brooklyn.t@email.com",      "310-555-0144", "Combination", "None"),
-    ("Bella",      "Phillips",  "bella.p@email.com",         "424-555-0145", "Sensitive",   "Sulfates"),
-    ("Claire",     "Campbell",  "claire.c@email.com",        "310-555-0146", "Normal",      "None"),
-    ("Skylar",     "Parker",    "skylar.p@email.com",        "424-555-0147", "Dry",         "None"),
-    ("Lucy",       "Evans",     "lucy.e@email.com",          "310-555-0148", "Oily",        "None"),
-    ("Paisley",    "Edwards",   "paisley.e@email.com",       "424-555-0149", "Combination", "None"),
-    ("Everly",     "Collins",   "everly.c@email.com",        "310-555-0150", "Sensitive",   "Benzoyl peroxide"),
-    ("Aurora",     "Stewart",   "aurora.s@email.com",        "424-555-0151", "Normal",      "None"),
-    ("Naomi",      "Sanchez",   "naomi.s@email.com",         "310-555-0152", "Dry",         "AHA acids"),
-    ("Elena",      "Morris",    "elena.m@email.com",         "424-555-0153", "Oily",        "None"),
-    ("Stella",     "Rogers",    "stella.r@email.com",        "310-555-0154", "Combination", "None"),
-    ("Violet",     "Reed",      "violet.r@email.com",        "424-555-0155", "Sensitive",   "Fragrance"),
-    ("Nova",       "Cook",      "nova.c@email.com",          "310-555-0156", "Normal",      "None"),
-    ("Hazel",      "Morgan",    "hazel.m@email.com",         "424-555-0157", "Dry",         "None"),
-    ("Caroline",   "Bell",      "caroline.b@email.com",      "310-555-0158", "Oily",        "Retinol"),
-    ("Genesis",    "Murphy",    "genesis.m@email.com",       "424-555-0159", "Combination", "None"),
-    ("Serenity",   "Bailey",    "serenity.b@email.com",      "310-555-0160", "Sensitive",   "None"),
-    ("Willow",     "Rivera",    "willow.r@email.com",        "424-555-0161", "Normal",      "Sulfates"),
+# ---------------------------------------------------------------------------
+# Patient name pool — 50 first names × 10 last names = 500 unique combos
+# ---------------------------------------------------------------------------
+
+FIRST_NAMES = [
+    "Sofia", "Emma", "Olivia", "Ava", "Isabella", "Mia", "Charlotte", "Amelia",
+    "Harper", "Evelyn", "Abigail", "Emily", "Elizabeth", "Camila", "Luna",
+    "Penelope", "Riley", "Zoey", "Nora", "Lily", "Eleanor", "Hannah", "Lillian",
+    "Addison", "Aubrey", "Scarlett", "Victoria", "Madison", "Grace", "Chloe",
+    "Layla", "Samantha", "Natalie", "Zoe", "Audrey", "Leah", "Ariana", "Allison",
+    "Gabriella", "Anna", "Savannah", "Brooklyn", "Bella", "Claire", "Skylar",
+    "Lucy", "Paisley", "Aurora", "Naomi", "Elena", "Stella", "Violet", "Nova",
+    "Hazel", "Caroline", "Genesis", "Serenity", "Willow", "Everly", "Jasmine",
+    "Katherine", "Maya", "Alyssa", "Vanessa", "Diana", "Rachel", "Jessica",
+    "Amanda", "Nicole", "Stephanie", "Michelle", "Lauren", "Kimberly", "Sarah",
+    "Ashley", "Brittany", "Amber", "Alexis", "Kayla", "Taylor", "Morgan",
+    "Destiny", "Chelsea", "Alexandria", "Valentina", "Natalia", "Miriam",
+    "Patricia", "Daniela", "Catalina", "Priya", "Mei", "Yuki", "Aisha",
+    "Fatima", "Nina", "Bianca", "Vivian", "Iris", "Celeste", "Daphne",
 ]
+
+LAST_NAMES = [
+    "Martinez", "Johnson", "Chen", "Williams", "Brown", "Davis", "Garcia",
+    "Wilson", "Moore", "Taylor", "Anderson", "Thomas", "Jackson", "White",
+    "Harris", "Martin", "Thompson", "Robinson", "Clark", "Rodriguez",
+    "Lewis", "Lee", "Walker", "Hall", "Allen", "Young", "Hernandez",
+    "King", "Wright", "Lopez", "Hill", "Scott", "Green", "Adams", "Baker",
+    "Gonzalez", "Nelson", "Carter", "Mitchell", "Perez", "Roberts", "Turner",
+    "Phillips", "Campbell", "Parker", "Evans", "Edwards", "Collins", "Stewart",
+    "Sanchez", "Morris", "Rogers", "Reed", "Cook", "Morgan", "Bell", "Murphy",
+    "Bailey", "Rivera", "Cooper", "Richardson", "Cox", "Howard", "Ward", "Torres",
+    "Peterson", "Gray", "Ramirez", "James", "Watson", "Brooks", "Kelly",
+    "Sanders", "Price", "Bennett", "Wood", "Barnes", "Ross", "Henderson",
+    "Coleman", "Jenkins", "Perry", "Powell", "Long", "Patterson", "Hughes",
+    "Flores", "Washington", "Butler", "Simmons", "Foster", "Gonzales", "Bryant",
+    "Alexander", "Russell", "Griffin", "Diaz", "Hayes", "Myers", "Ford",
+]
+
+SKIN_TYPES  = ["Normal", "Dry", "Oily", "Combination", "Sensitive"]
+ALLERGIES   = ["None", "None", "None", "Retinol", "Fragrance", "Sulfates",
+               "AHA acids", "Benzoyl peroxide", "Parabens", "Salicylic acid"]
 
 # ---------------------------------------------------------------------------
 # Scheduling helpers
 # ---------------------------------------------------------------------------
 
-# Oksana works Tuesday–Saturday, 9am–7pm
-WORK_DAYS = {1, 2, 3, 4, 5}  # Mon=0 … Sat=5 in Python weekday()
-HOURS_START = 9
-HOURS_END   = 19  # last slot can start at 6pm for a 60-min service
+# Tue–Sat work week (Mon=0, Sat=5)
+WORK_DAYS      = {1, 2, 3, 4, 5}
+HOURS_START    = 9
+HOURS_END      = 19
+BUFFER_MINUTES = 10   # cleanup/turnover time between appointments
 
 TODAY = date(2026, 5, 13)
 
 
 def appointments_per_day(d: date) -> int:
-    """Return how many appointments to generate for a given working day."""
+    """
+    Returns a realistic target count for a solo esthetician.
+    Hard ceiling ~9: avg service 54 min + 10 min buffer = 64 min/slot in 600 min day.
+    """
     m = d.month
     if m <= 4:
-        # Jan–Apr: growing practice, 5–10 appointments on work days
-        return random.randint(5, 10)
+        return random.randint(5, 8)   # Jan–Apr: growing practice
     if m == 5:
-        # May: peak season — 15–20 per day
-        return random.randint(15, 20)
+        return random.randint(7, 9)   # May: peak season
     if m == 6:
-        # June: mild — 5–8 per day
-        return random.randint(5, 8)
-    # July: sporadic — 0–3, many days off
-    return random.choices([0, 1, 2, 3], weights=[30, 30, 25, 15])[0]
+        return random.randint(5, 8)   # June: mild
+    # July: sporadic summer slowdown
+    return random.choices([0, 1, 2, 3, 4], weights=[20, 25, 25, 18, 12])[0]
 
 
 def status_for(scheduled: datetime) -> str:
-    """Assign a realistic status based on whether the appointment is past/future."""
-    appt_date = scheduled.date()
-    if appt_date < TODAY:
-        return random.choices(["completed", "cancelled"], weights=[82, 18])[0]
+    if scheduled.date() < TODAY:
+        return random.choices(["completed", "cancelled", "no-show"],
+                              weights=[78, 15, 7])[0]
     return "scheduled"
 
 
-def random_time_on(d: date) -> datetime:
-    """Pick a random working-hours time on the given date."""
-    hour   = random.randint(HOURS_START, HOURS_END - 1)
-    minute = random.choice([0, 15, 30, 45])
-    return datetime(d.year, d.month, d.day, hour, minute)
+def schedule_day(work_day: date, n_target: int, services: list) -> list:
+    """
+    Schedule up to n_target non-overlapping appointments on work_day.
+    Picks service first (to know duration), then finds a free slot via
+    interval collision detection. Returns list of (start_datetime, service).
+    """
+    booked = []   # [(start_dt, end_dt), ...]
+    result = []
+    work_end = datetime(work_day.year, work_day.month, work_day.day, HOURS_END, 0)
+
+    for _ in range(n_target * 12):   # generous attempts to fill the target
+        if len(result) >= n_target:
+            break
+
+        service = random.choice(services)
+        hour    = random.randint(HOURS_START, HOURS_END - 1)
+        minute  = random.choice([0, 15, 30, 45])
+        start   = datetime(work_day.year, work_day.month, work_day.day, hour, minute)
+        end     = start + timedelta(minutes=service.duration_minutes + BUFFER_MINUTES)
+
+        if end > work_end:
+            continue
+        if any(start < b_end and end > b_start for b_start, b_end in booked):
+            continue
+
+        booked.append((start, end))
+        result.append((start, service))
+
+    return result
 
 
 def all_work_days(start: date, end: date):
-    """Yield every working day between start and end (inclusive)."""
     current = start
     while current <= end:
         if current.weekday() in WORK_DAYS:
             yield current
         current += timedelta(days=1)
+
+
+def generate_patients(n: int) -> list:
+    """Generate n unique (first, last) patient records."""
+    seen_emails = set()
+    patients = []
+    first_pool = FIRST_NAMES * (n // len(FIRST_NAMES) + 2)
+    last_pool  = LAST_NAMES  * (n // len(LAST_NAMES)  + 2)
+    random.shuffle(first_pool)
+    random.shuffle(last_pool)
+
+    i = 0
+    while len(patients) < n:
+        first = first_pool[i % len(first_pool)]
+        last  = last_pool[i % len(last_pool)]
+        # Make email unique by appending a counter when needed
+        base_email = f"{first.lower()}.{last.lower()}@email.com"
+        email = base_email
+        suffix = 2
+        while email in seen_emails:
+            email = f"{first.lower()}.{last.lower()}{suffix}@email.com"
+            suffix += 1
+        seen_emails.add(email)
+        area = random.choice(["310", "424", "323", "213", "818"])
+        phone = f"{area}-555-{1000 + len(patients):04d}"
+        patients.append((first, last, email, phone,
+                         random.choice(SKIN_TYPES),
+                         random.choice(ALLERGIES)))
+        i += 1
+    return patients
 
 
 # ---------------------------------------------------------------------------
@@ -183,9 +213,10 @@ def seed(force: bool = False):
         db.commit()
         print(f"Seeded {len(services)} services.")
 
-        # Patients
+        # Patients — 500 generated records
+        patient_rows = generate_patients(500)
         patients = []
-        for first, last, email, phone, skin, allergies in PATIENTS:
+        for first, last, email, phone, skin, allergies in patient_rows:
             p = Patient(first_name=first, last_name=last, email=email,
                         phone=phone, skin_type=skin, allergies=allergies)
             db.add(p)
@@ -193,30 +224,23 @@ def seed(force: bool = False):
         db.commit()
         print(f"Seeded {len(patients)} patients.")
 
-        # Appointments — Jan 1 through July 31 2026
+        # Appointments — Jan 1 through Jul 31 2026
         start_date = date(2026, 1, 1)
         end_date   = date(2026, 7, 31)
 
         count = 0
-        batch_size = 200
+        batch_size = 250
 
         for work_day in all_work_days(start_date, end_date):
             n = appointments_per_day(work_day)
-            used_slots = set()
-            for _ in range(n):
-                # avoid exact duplicate times on the same day
-                for _attempt in range(10):
-                    scheduled = random_time_on(work_day)
-                    slot_key  = (scheduled.hour, scheduled.minute)
-                    if slot_key not in used_slots:
-                        used_slots.add(slot_key)
-                        break
+            day_slots = schedule_day(work_day, n, services)
 
+            for start, service in day_slots:
                 appt = Appointment(
                     patient_id=random.choice(patients).id,
-                    service_id=random.choice(services).id,
-                    scheduled_at=scheduled,
-                    status=status_for(scheduled),
+                    service_id=service.id,
+                    scheduled_at=start,
+                    status=status_for(start),
                     notes=None,
                 )
                 db.add(appt)
