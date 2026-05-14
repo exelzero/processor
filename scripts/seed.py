@@ -18,6 +18,9 @@ from app.database import SessionLocal, engine, Base
 from app.models.patient import Patient
 from app.models.service import Service
 from app.models.appointment import Appointment
+from app.models.product import Product
+from app.models.promotion import Promotion
+from app.models.sale import Sale, SaleItem, SaleReturn
 
 Base.metadata.create_all(bind=engine)
 
@@ -197,9 +200,14 @@ def seed(force: bool = False):
             return
 
         if force:
+            db.query(SaleReturn).delete()
+            db.query(SaleItem).delete()
+            db.query(Sale).delete()
             db.query(Appointment).delete()
             db.query(Patient).delete()
             db.query(Service).delete()
+            db.query(Product).delete()
+            db.query(Promotion).delete()
             db.commit()
             print("Cleared existing data.")
 
@@ -252,6 +260,218 @@ def seed(force: bool = False):
 
         db.commit()
         print(f"Seeded {count} appointments across Jan–Jul 2026.")
+
+        # ---------------------------------------------------------------
+        # Products — 32 retail skincare items
+        # ---------------------------------------------------------------
+        PRODUCTS = [
+            # (name, brand, description, category, price, cost, sku)
+            ("Gentle Foaming Cleanser",      "iS Clinical",    "Soothing daily cleanser for all skin types",            "Cleanser",    38.0,  16.0, "ISC-GFC-001"),
+            ("Purifying Gel Cleanser",        "PCA Skin",       "Deep-pore cleansing gel for oily skin",                 "Cleanser",    34.0,  14.0, "PCA-PGC-002"),
+            ("Balancing Face Wash",           "Dermalogica",    "pH-balanced cleanser for combination skin",             "Cleanser",    42.0,  18.0, "DRM-BFW-003"),
+            ("Hydrating Toner Mist",          "Eminence",       "Rosewater-infused toning mist",                         "Toner",       44.0,  19.0, "EMN-HTM-004"),
+            ("Balancing Toner",               "PCA Skin",       "Antioxidant-rich toner to restore skin balance",        "Toner",       38.0,  16.0, "PCA-BT-005"),
+            ("C E Ferulic Vitamin C Serum",   "SkinCeuticals",  "Dual antioxidant vitamin C serum — best seller",        "Serum",      182.0,  72.0, "SKC-CEF-006"),
+            ("Super Serum Advance+",          "iS Clinical",    "Potent multi-correctional anti-aging serum",            "Serum",      145.0,  58.0, "ISC-SSA-007"),
+            ("Active Serum",                  "iS Clinical",    "Brightening and smoothing treatment serum",             "Serum",      128.0,  51.0, "ISC-AS-008"),
+            ("Radiance Renewal Serum",        "Jan Marini",     "Brightening serum with niacinamide & peptides",         "Serum",      148.0,  59.0, "JM-RRS-009"),
+            ("Hyaluronic Acid B5",            "SkinCeuticals",  "Hydrating concentrate with pure hyaluronic acid",       "Serum",       92.0,  37.0, "SKC-HAB-010"),
+            ("Redness Relief Creme",          "Eminence",       "Calming moisturizer for sensitive & reactive skin",     "Moisturizer", 64.0,  26.0, "EMN-RRC-011"),
+            ("Ultra Rich Moisturizer",        "Jan Marini",     "Intense hydration for dry & mature skin",               "Moisturizer", 86.0,  34.0, "JM-URM-012"),
+            ("Age Intervention Face Cream",   "Jan Marini",     "Advanced anti-aging moisturizer with growth factors",   "Moisturizer",180.0,  72.0, "JM-AIF-013"),
+            ("Daily Microfoliant SPF 30",     "Dermalogica",    "Exfoliating moisturizer with broad-spectrum SPF",       "Moisturizer", 58.0,  23.0, "DRM-DMS-014"),
+            ("Skin Matrix Support",           "PCA Skin",       "Firming moisturizer with ceramides & peptides",         "Moisturizer", 94.0,  38.0, "PCA-SMS-015"),
+            ("Physical Fusion UV Defense",    "SkinCeuticals",  "Tinted SPF 50 physical sunscreen",                      "SPF",         42.0,  17.0, "SKC-PFU-016"),
+            ("Sheer Physical UV Defense",     "SkinCeuticals",  "Weightless SPF 50 mineral sunscreen",                   "SPF",         38.0,  15.0, "SKC-SPU-017"),
+            ("Smart SPF 45 Sunscreen",        "Jan Marini",     "Antioxidant-enriched daily SPF",                        "SPF",         58.0,  23.0, "JM-SS45-018"),
+            ("Colorsetting SPF 30",           "PCA Skin",       "Setting powder with built-in sun protection",           "SPF",         44.0,  18.0, "PCA-CS30-019"),
+            ("AOX+ Eye Gel",                  "SkinCeuticals",  "Antioxidant eye gel targeting dark circles & puffiness","Eye Care",   108.0,  43.0, "SKC-AOX-020"),
+            ("Eye Contour Gel",               "Dermalogica",    "Cooling eye gel for tired, puffy eyes",                 "Eye Care",    64.0,  26.0, "DRM-ECG-021"),
+            ("Eye Lift Gel",                  "iS Clinical",    "Lifting & firming eye treatment",                       "Eye Care",    96.0,  38.0, "ISC-ELG-022"),
+            ("Kaolin Clay Mask",              "Eminence",       "Deep-cleansing clay mask for congested skin",           "Mask",        56.0,  22.0, "EMN-KCM-023"),
+            ("Sulfur Masque",                 "Jan Marini",     "Purifying acne treatment mask",                         "Mask",        68.0,  27.0, "JM-SM-024"),
+            ("Pore Refining Treatment Mask",  "SkinCeuticals",  "Clay-based mask to minimize pore appearance",           "Mask",        72.0,  29.0, "SKC-PRT-025"),
+            ("Micro-Exfoliating Scrub",       "Dermalogica",    "Gentle physical exfoliant with rice bran enzymes",      "Exfoliator",  48.0,  19.0, "DRM-MES-026"),
+            ("Micro Exfoliating Cleanser",    "iS Clinical",    "Dual-action enzymatic exfoliating cleanser",            "Exfoliator",  56.0,  22.0, "ISC-MEC-027"),
+            ("Smoothing Toner",               "PCA Skin",       "AHA/BHA liquid exfoliant for smooth texture",           "Exfoliator",  44.0,  18.0, "PCA-ST-028"),
+            ("Replenishing Body Butter",      "Eminence",       "Rich shea & mango butter for dry body skin",            "Body",        38.0,  15.0, "EMN-RBB-029"),
+            ("Triple Lipid Restore Body",     "SkinCeuticals",  "Barrier-repairing body lotion with ceramides",          "Body",        72.0,  29.0, "SKC-TLR-030"),
+            ("Rose Quartz Gua Sha",           "OK Beauty",      "Hand-carved rose quartz gua sha tool",                  "Tool",        28.0,  10.0, "OKB-RQG-031"),
+            ("Jade Facial Roller",            "OK Beauty",      "Dual-ended jade roller for lymphatic drainage",         "Tool",        22.0,   8.0, "OKB-JFR-032"),
+        ]
+
+        products = []
+        for name, brand, desc, cat, price, cost, sku in PRODUCTS:
+            p = Product(name=name, brand=brand, description=desc, category=cat,
+                        price=price, cost=cost, sku=sku, active=True)
+            db.add(p)
+            products.append(p)
+        db.commit()
+        print(f"Seeded {len(products)} products.")
+
+        # ---------------------------------------------------------------
+        # Promotions — 10 campaigns
+        # ---------------------------------------------------------------
+        PROMOTIONS = [
+            # (name, code, type, value, min_purchase, start, end, max_uses)
+            ("Welcome Offer",       "WELCOME25",  "percentage", 25.0, None,   "2026-01-01", "2026-12-31", 500),
+            ("Valentine's Day",     "VALENTINE",  "fixed",      20.0, 100.0,  "2026-02-10", "2026-02-17", None),
+            ("Spring Sale",         "SPRING20",   "percentage", 20.0, None,   "2026-03-01", "2026-03-31", None),
+            ("Loyalty Club",        "LOYALCLUB",  "percentage", 10.0, None,   "2026-01-01", "2026-12-31", None),
+            ("May Day Sale",        "MAYDAY15",   "percentage", 15.0, None,   "2026-05-01", "2026-05-31", None),
+            ("Bundle & Save",       "BUNDLE15",   "percentage", 15.0, 80.0,   "2026-01-01", "2026-12-31", None),
+            ("Summer Vibes",        "SUMMERVIB",  "percentage", 10.0, None,   "2026-06-01", "2026-08-31", None),
+            ("Birthday Special",    "BIRTHDAY15", "percentage", 15.0, None,   "2026-01-01", "2026-12-31", None),
+            ("Flash Sale",          "FLASH30",    "percentage", 30.0, None,   "2026-04-15", "2026-04-16", 100),
+            ("Independence Day",    "JULY4TH",    "fixed",      25.0, 150.0,  "2026-07-01", "2026-07-07", None),
+        ]
+
+        def promo_dt(s):
+            return datetime.strptime(s, "%Y-%m-%d")
+
+        promotions_map = {}  # code → Promotion object
+        for name, code, dtype, val, min_p, start_s, end_s, max_u in PROMOTIONS:
+            pr = Promotion(
+                name=name, code=code, discount_type=dtype, discount_value=val,
+                min_purchase=min_p, start_date=promo_dt(start_s), end_date=promo_dt(end_s),
+                active=True, max_uses=max_u, uses_count=0,
+            )
+            db.add(pr)
+            promotions_map[code] = pr
+        db.commit()
+        print(f"Seeded {len(PROMOTIONS)} promotions.")
+
+        # ---------------------------------------------------------------
+        # Sales — 2–5/workday Jan–Jul 2026, matching appointment density
+        # ---------------------------------------------------------------
+        # Product weights: serums & SPF most popular at a spa
+        PRODUCT_WEIGHTS = [
+            1, 1, 1, 1, 1,          # cleansers / toners
+            4, 4, 3, 3, 3,          # serums (higher weight)
+            2, 2, 2, 2, 2,          # moisturizers
+            3, 3, 2, 2,             # SPF (popular)
+            2, 2, 2,                # eye care
+            1, 1, 1,                # masks
+            1, 1, 1,                # exfoliators
+            1, 1,                   # body
+            1, 1,                   # tools
+        ]
+
+        # Promos eligible by date range
+        def active_promos_for(d: date):
+            dt = datetime(d.year, d.month, d.day, 12, 0)
+            return [pr for pr in promotions_map.values()
+                    if pr.start_date <= dt <= pr.end_date]
+
+        def sales_per_day(d: date) -> int:
+            m = d.month
+            if m <= 4:   return random.randint(2, 4)
+            if m == 5:   return random.randint(4, 6)
+            if m == 6:   return random.randint(2, 4)
+            return random.choices([0, 1, 2, 3], weights=[25, 35, 28, 12])[0]
+
+        sale_count = 0
+        all_sales = []
+
+        for work_day in all_work_days(date(2026, 1, 1), date(2026, 7, 31)):
+            n_sales = sales_per_day(work_day)
+            eligible_promos = active_promos_for(work_day)
+
+            for _ in range(n_sales):
+                # 1–3 items per sale, weighted toward 1
+                n_items = random.choices([1, 2, 3], weights=[55, 32, 13])[0]
+                chosen = random.choices(products, weights=PRODUCT_WEIGHTS, k=n_items)
+                # deduplicate (same product twice → just increase qty)
+                item_map = {}
+                for prod in chosen:
+                    item_map[prod.id] = item_map.get(prod.id, 0) + 1
+
+                subtotal = round(sum(p.price * qty for p, qty in
+                                     [(db.get(Product, pid), qty) for pid, qty in item_map.items()]), 2)
+
+                # 18 % chance of promo; pick one that's valid for the subtotal
+                discount = 0.0
+                promo_obj = None
+                if eligible_promos and random.random() < 0.18:
+                    eligible = [pr for pr in eligible_promos
+                                if pr.min_purchase is None or subtotal >= pr.min_purchase]
+                    if eligible:
+                        promo_obj = random.choice(eligible)
+                        if promo_obj.discount_type == 'percentage':
+                            discount = round(subtotal * promo_obj.discount_value / 100, 2)
+                        else:
+                            discount = min(promo_obj.discount_value, subtotal)
+                        promo_obj.uses_count += 1
+
+                sale_hour = random.randint(9, 18)
+                sale_time = datetime(work_day.year, work_day.month, work_day.day,
+                                     sale_hour, random.choice([0, 15, 30, 45]))
+
+                sale_obj = Sale(
+                    patient_id=random.choice(patients).id,
+                    promotion_id=promo_obj.id if promo_obj else None,
+                    sale_date=sale_time,
+                    subtotal=subtotal,
+                    discount_amount=round(discount, 2),
+                    total=round(subtotal - discount, 2),
+                    status='completed',
+                )
+                db.add(sale_obj)
+                db.flush()
+
+                for pid, qty in item_map.items():
+                    prod = db.get(Product, pid)
+                    db.add(SaleItem(
+                        sale_id=sale_obj.id,
+                        product_id=pid,
+                        quantity=qty,
+                        unit_price=prod.price,
+                        total=round(prod.price * qty, 2),
+                    ))
+
+                all_sales.append(sale_obj)
+                sale_count += 1
+
+                if sale_count % 250 == 0:
+                    db.commit()
+                    print(f"  {sale_count} sales committed…")
+
+        db.commit()
+
+        # Returns — ~6% of completed sales
+        return_reasons = [
+            "Product caused irritation",
+            "Wrong product purchased",
+            "Duplicate purchase",
+            "Not suitable for skin type",
+            "Received as gift — already have it",
+            "Allergic reaction",
+            "Product not as expected",
+        ]
+        return_count = 0
+        returnable = [s for s in all_sales if s.sale_date.date() < TODAY]
+        n_returns = int(len(returnable) * 0.06)
+        for sale_obj in random.sample(returnable, n_returns):
+            db.refresh(sale_obj)
+            # Partial return (60%) or full return (40%)
+            if random.random() < 0.6 and sale_obj.total > 20:
+                amount = round(sale_obj.total * random.uniform(0.3, 0.7), 2)
+                status = 'partially_refunded'
+            else:
+                amount = sale_obj.total
+                status = 'refunded'
+            ret_date = sale_obj.sale_date + timedelta(days=random.randint(1, 14))
+            db.add(SaleReturn(
+                sale_id=sale_obj.id,
+                return_date=ret_date,
+                amount=amount,
+                reason=random.choice(return_reasons),
+            ))
+            sale_obj.status = status
+            return_count += 1
+
+        db.commit()
+        print(f"Seeded {sale_count} sales with {return_count} returns.")
         print("Done.")
 
     finally:
