@@ -1,4 +1,4 @@
-import { useMemo, useCallback } from 'react'
+import { useMemo, useCallback, useState } from 'react'
 import { Calendar, dateFnsLocalizer } from 'react-big-calendar'
 import { format, parse, startOfWeek, getDay } from 'date-fns'
 import { enUS } from 'date-fns/locale/en-US'
@@ -28,6 +28,10 @@ const localizer = dateFnsLocalizer({
   getDay,
   locales: { 'en-US': enUS },
 })
+
+// Stable date bounds — defined outside the component so they never trigger re-renders
+const MIN_TIME = new Date(0, 0, 0, 8, 0)
+const MAX_TIME = new Date(0, 0, 0, 20, 0)
 
 // Color palette per service category — muted tones to match the stone aesthetic
 const CATEGORY_COLORS = {
@@ -69,7 +73,14 @@ function toCalendarEvent(appt) {
   }
 }
 
+// Stable components map — defined outside the component so the object
+// reference never changes and RBC doesn't remount the calendar on re-renders
+const CALENDAR_COMPONENTS = { event: EventComponent }
+
 export default function AppointmentCalendar({ appointments, onSelectSlot, onSelectEvent }) {
+  const [currentDate, setCurrentDate] = useState(new Date())
+  const [currentView, setCurrentView] = useState('week')
+
   const events = useMemo(() => appointments.map(toCalendarEvent), [appointments])
 
   const eventPropGetter = useCallback((event) => {
@@ -91,18 +102,21 @@ export default function AppointmentCalendar({ appointments, onSelectSlot, onSele
       <Calendar
         localizer={localizer}
         events={events}
-        defaultView="week"
+        date={currentDate}
+        view={currentView}
+        onNavigate={setCurrentDate}
+        onView={setCurrentView}
         views={['month', 'week', 'day', 'agenda']}
-        step={15}           // 15-minute grid slots
-        timeslots={4}       // 4 slots per hour = 15min each
-        min={new Date(0, 0, 0, 8, 0)}   // start at 8am
-        max={new Date(0, 0, 0, 20, 0)}  // end at 8pm
+        step={15}
+        timeslots={4}
+        min={MIN_TIME}
+        max={MAX_TIME}
         selectable
         onSelectSlot={onSelectSlot}
         onSelectEvent={event => onSelectEvent(event.resource)}
         eventPropGetter={eventPropGetter}
-        components={{ event: EventComponent }}
-        popup  // show "+N more" popup on month view when day is full
+        components={CALENDAR_COMPONENTS}
+        popup
       />
     </div>
   )
