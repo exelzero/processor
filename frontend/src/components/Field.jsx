@@ -1,3 +1,18 @@
+/**
+ * Labeled text input used consistently across all create/edit forms.
+ *
+ * Centralising the input style here means a single edit changes every
+ * form field in the app simultaneously. For select dropdowns, textareas,
+ * or checkboxes, use inline JSX directly in the form — those don't repeat
+ * enough to warrant their own components yet.
+ *
+ * @param {string}   label        - Field label shown above the input
+ * @param {string}   [type=text]  - HTML input type (text, email, date, number…)
+ * @param {string}   value        - Controlled value
+ * @param {Function} onChange     - Called with the new string value (not the event)
+ * @param {boolean}  [required]   - Adds HTML required validation
+ * @param {string}   [placeholder]
+ */
 export default function Field({ label, type = 'text', value, onChange, required, placeholder }) {
   return (
     <div>

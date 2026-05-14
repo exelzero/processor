@@ -1,3 +1,14 @@
+/**
+ * Application root — defines the route tree and auth guard.
+ *
+ * PrivateRoute checks for a JWT in localStorage. If the token is missing
+ * the user is redirected to /login. Token validity (expiry) is checked
+ * server-side on every API call — a 401 response triggers a redirect via
+ * the Axios interceptor in api.js, not here.
+ *
+ * To add a new page: create the component in pages/, add a <Route> here,
+ * and add a nav entry in components/Layout.jsx.
+ */
 import { Routes, Route, Navigate } from 'react-router-dom'
 import Login from './pages/Login'
 import Layout from './components/Layout'
