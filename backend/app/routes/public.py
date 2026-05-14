@@ -42,8 +42,8 @@ def _busy_intervals(db: Session, target_date: date) -> list[tuple]:
     Results are cached in _intervals_cache (LRU, capacity 14) keyed by the
     ISO date string.  Cache hit: O(1) — no DB round-trip.  Cache miss: one
     SELECT with a joinedload, results stored and returned.  The entry is
-    invalidated by book_appointment() after every successful commit so the
-    cache never serves stale data for a date that just received a booking.
+    invalidated by any write path that modifies appointment data (booking,
+    admin create/update/cancel/delete) so the cache never serves stale data.
 
     Data structure choices:
     - list: ordered, O(1) append, O(n) iteration — appropriate here because we

@@ -35,9 +35,10 @@ class LRUCache:
     Add a threading.Lock around _store mutations for multi-threaded workers.
     """
 
-    # Unique sentinel returned by get() on a cache miss.
-    # Using a private object (not None) means None is a valid storable value
-    # and callers can distinguish a miss from a cached None unambiguously.
+    # Identity sentinel returned by get() on a cache miss.
+    # A bare object() has a unique identity — callers compare with
+    # `is not LRUCache.MISSING`, never by value.  Using a dedicated sentinel
+    # (not None) means None is a valid storable value.
     MISSING: object = object()
 
     def __init__(self, capacity: int) -> None:
