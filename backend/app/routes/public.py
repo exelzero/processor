@@ -33,6 +33,11 @@ def _normalize_phone(raw: str) -> str:
 
 
 
+# list[tuple] uses PEP 585 built-in generics (Python 3.9+).
+# Before 3.9 this required `from typing import List, Tuple` and `List[Tuple]`.
+# PEP 585 lets built-in collection types (list, dict, tuple, set) act as
+# generic aliases directly, keeping imports leaner and annotations consistent
+# with how the types read in normal prose.
 def _busy_intervals(db: Session, target_date: date) -> list[tuple]:
     """
     Build the occupied time intervals for a given day.
