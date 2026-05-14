@@ -1,7 +1,7 @@
 from collections import defaultdict
 from datetime import date, datetime, timedelta
 from typing import Optional
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import cast, func, case, String
 
@@ -20,15 +20,17 @@ router = APIRouter()
 WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
 
+VALID_PERIODS = {'ytd', '30d', '60d', '90d', '120d'}
+
 def _start_dt(period: str) -> Optional[datetime]:
-    """Return the inclusive start datetime for the requested period, or None for all-time."""
+    """Return the inclusive start datetime for the requested period."""
+    if period not in VALID_PERIODS:
+        raise HTTPException(status_code=422, detail=f"Invalid period '{period}'. Must be one of: {', '.join(sorted(VALID_PERIODS))}")
     today = date.today()
     if period == 'ytd':
         start = date(today.year, 1, 1)
-    elif period in ('30d', '60d', '90d', '120d'):
-        start = today - timedelta(days=int(period[:-1]))
     else:
-        return None
+        start = today - timedelta(days=int(period[:-1]))
     return datetime(start.year, start.month, start.day)
 
 

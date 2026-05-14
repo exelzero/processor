@@ -3,7 +3,6 @@ import {
   AreaChart, Area,
   BarChart, Bar,
   ComposedChart, Line,
-  LineChart,
   PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from 'recharts'
@@ -117,7 +116,7 @@ export default function Analytics() {
   const serviceRevenue  = revenueTrend.by_month.reduce((s, r) => s + r.revenue, 0)
   const totalRevenue    = serviceRevenue + productSales.total_revenue
   const net             = totalRevenue - expensesData.total
-  const totalAppts      = statusTrend.by_month.reduce((s, r) => s + r.completed + r.cancelled + r['no-show'] + r.scheduled, 0)
+  const totalAppts      = statusTrend.by_month.reduce((s, r) => s + r.completed + r.cancelled + r['no-show'], 0)
   const totalVolume     = totalAppts + productSales.total_transactions
 
   const { cancellation_rate, no_show_rate } = statusTrend
@@ -651,7 +650,7 @@ export default function Analytics() {
           <CardTitle>Stock Alerts</CardTitle>
           {!loading && inventoryData.low_stock_items.length > 0 ? (
             <div className="space-y-1">
-              {inventoryData.low_stock_items.map(item => (
+              {inventoryData.low_stock_items.slice(0, 10).map(item => (
                 <div key={item.name} className="flex items-center justify-between py-2 border-b border-stone-50 last:border-0">
                   <div className="min-w-0 mr-2">
                     <p className="text-sm text-stone-700 truncate">{item.name}</p>

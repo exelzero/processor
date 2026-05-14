@@ -15,19 +15,21 @@ export function useAnalytics(period = 'ytd') {
   const [error, setError]                       = useState(null)
 
   useEffect(() => {
+    const controller = new AbortController()
+    const signal = controller.signal
     setLoading(true)
     setError(null)
     const params = { period }
     Promise.all([
-      api.get('/analytics/revenue-trend',      { params }),
-      api.get('/analytics/category-mix',       { params }),
-      api.get('/analytics/status-trend',       { params }),
-      api.get('/analytics/schedule-patterns',  { params }),
-      api.get('/analytics/service-performance',{ params }),
-      api.get('/analytics/client-insights',    { params }),
-      api.get('/analytics/product-sales',      { params }),
-      api.get('/analytics/expenses',           { params }),
-      api.get('/analytics/inventory'),
+      api.get('/analytics/revenue-trend',      { params, signal }),
+      api.get('/analytics/category-mix',       { params, signal }),
+      api.get('/analytics/status-trend',       { params, signal }),
+      api.get('/analytics/schedule-patterns',  { params, signal }),
+      api.get('/analytics/service-performance',{ params, signal }),
+      api.get('/analytics/client-insights',    { params, signal }),
+      api.get('/analytics/product-sales',      { params, signal }),
+      api.get('/analytics/expenses',           { params, signal }),
+      api.get('/analytics/inventory',          { signal }),
     ])
       .then(([rt, cm, st, sp, svc, ci, ps, ex, inv]) => {
         setRevenueTrend(rt.data)
@@ -40,8 +42,13 @@ export function useAnalytics(period = 'ytd') {
         setExpensesData(ex.data)
         setInventoryData(inv.data)
       })
-      .catch(err => setError(err.response?.data?.detail ?? 'Failed to load analytics.'))
-      .finally(() => setLoading(false))
+      .catch(err => {
+        if (err.name !== 'CanceledError' && err.name !== 'AbortError') {
+          setError(err.response?.data?.detail ?? 'Failed to load analytics.')
+        }
+      })
+      .finally(() => { if (!signal.aborted) setLoading(false) })
+    return () => controller.abort()
   }, [period])
 
   return { revenueTrend, categoryMix, statusTrend, schedulePatterns, servicePerf, clientInsights, productSales, expensesData, inventoryData, loading, error }

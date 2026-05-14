@@ -1,4 +1,5 @@
 from collections import defaultdict
+from datetime import date, datetime
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from sqlalchemy import cast, func, String
@@ -60,7 +61,6 @@ def revenue_by_service(db: Session = Depends(get_db), _=Depends(verify_token)):
 
 @router.get("/revenue-by-month")
 def revenue_by_month(db: Session = Depends(get_db), _=Depends(verify_token)):
-    from datetime import date
     current_year = str(date.today().year)
 
     appt_rows = (
@@ -116,7 +116,6 @@ def revenue_by_month(db: Session = Depends(get_db), _=Depends(verify_token)):
 
 @router.get("/upcoming")
 def upcoming(db: Session = Depends(get_db), _=Depends(verify_token)):
-    from datetime import datetime
     appts = (
         db.query(Appointment)
         .filter(Appointment.scheduled_at >= datetime.utcnow(), Appointment.status == "scheduled")
@@ -174,6 +173,7 @@ def on_order(db: Session = Depends(get_db), _=Depends(verify_token)):
         db.query(Product)
         .filter(Product.active == True, Product.stock_on_order > 0)
         .order_by(Product.stock_on_order.desc())
+        .limit(50)
         .all()
     )
     return [
