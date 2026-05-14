@@ -1,9 +1,15 @@
+import { Children } from 'react'
+
 /**
  * Standard table shell used by Patients and Appointments pages.
  *
  * Handles the loading state internally so pages don't need to repeat
  * the same empty-row logic. The last column header is intentionally blank
  * — it holds row action buttons (Edit / Delete) which don't need a label.
+ *
+ * Uses React.Children.count() to detect empty rows reliably — this handles
+ * arrays, single elements, fragments, and conditional renders correctly,
+ * unlike a plain `!children` or `children.length === 0` check.
  *
  * @param {string[]}  columns  - Column header labels (left-aligned)
  * @param {boolean}   loading  - Shows a "Loading…" row while true
@@ -12,6 +18,7 @@
  */
 export default function DataTable({ columns, loading, empty = 'No records found', children }) {
   const colSpan = columns.length + 1
+  const isEmpty = Children.count(children) === 0
 
   return (
     <div className="bg-white border border-stone-200 rounded-xl overflow-hidden">
@@ -37,7 +44,7 @@ export default function DataTable({ columns, loading, empty = 'No records found'
                 Loading…
               </td>
             </tr>
-          ) : !children || (Array.isArray(children) && children.length === 0) ? (
+          ) : isEmpty ? (
             <tr>
               <td colSpan={colSpan} className="px-5 py-8 text-center text-stone-300 text-sm">
                 {empty}
