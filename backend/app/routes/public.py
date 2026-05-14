@@ -55,10 +55,32 @@ def _busy_intervals(db: Session, target_date: date):
     intervals = []
     for appt in existing:
         if appt.service is None:
-            continue  # orphaned appointment — skip rather than crash
+            continue
         end = appt.scheduled_at + timedelta(minutes=appt.service.duration_minutes + BUFFER_MINUTES)
         intervals.append((appt.scheduled_at, end))
     return intervals
+
+
+def _has_slots(target_date: date, service_duration: int, busy: list, today: date) -> bool:
+    """Return True if at least one slot is open on target_date for the given service."""
+    slot_duration = timedelta(minutes=service_duration + BUFFER_MINUTES)
+    open_dt  = datetime.combine(target_date, time(OPEN_HOUR, 0))
+    close_dt = datetime.combine(target_date, time(CLOSE_HOUR, 0))
+
+    if target_date == today:
+        earliest  = datetime.now() + timedelta(hours=MIN_NOTICE_HOURS)
+        remainder = earliest.minute % SLOT_MINUTES
+        if remainder:
+            earliest += timedelta(minutes=SLOT_MINUTES - remainder)
+        open_dt = max(open_dt, earliest.replace(second=0, microsecond=0))
+
+    candidate = open_dt
+    while candidate + slot_duration <= close_dt:
+        candidate_end = candidate + slot_duration
+        if not any(candidate < b_end and candidate_end > b_start for b_start, b_end in busy):
+            return True
+        candidate += timedelta(minutes=SLOT_MINUTES)
+    return False
 
 
 # ── Public service list ───────────────────────────────────────────────────────
@@ -82,6 +104,71 @@ def list_services(db: Session = Depends(get_db)):
         }
         for s in services
     ]
+
+
+# ── Available dates for a month ──────────────────────────────────────────────
+
+@router.get('/available-dates')
+def get_available_dates(
+    service_id: int,
+    year:       int = Query(...),
+    month:      int = Query(..., ge=1, le=12),
+    db:         Session = Depends(get_db),
+):
+    """Return list of YYYY-MM-DD strings that have at least one open slot."""
+    service = db.get(Service, service_id)
+    if not service or not service.active:
+        raise HTTPException(status_code=404, detail='Service not found')
+
+    today      = datetime.now().date()
+    max_date   = today + timedelta(days=MAX_DAYS_AHEAD)
+    month_start = date(year, month, 1)
+
+    # Last day of the requested month
+    if month == 12:
+        month_end = date(year + 1, 1, 1) - timedelta(days=1)
+    else:
+        month_end = date(year, month + 1, 1) - timedelta(days=1)
+
+    # Clamp to [today, max_date]
+    check_start = max(month_start, today)
+    check_end   = min(month_end, max_date)
+
+    if check_start > check_end:
+        return []
+
+    # Load all non-cancelled appointments for the entire date range in one query
+    range_start = datetime.combine(check_start, time.min)
+    range_end   = datetime.combine(check_end, time(23, 59, 59, 999999))
+    all_appts   = (
+        db.query(Appointment)
+        .options(joinedload(Appointment.service))
+        .filter(
+            Appointment.scheduled_at >= range_start,
+            Appointment.scheduled_at <= range_end,
+            Appointment.status != 'cancelled',
+        )
+        .all()
+    )
+
+    # Group busy intervals by date
+    from collections import defaultdict
+    busy_by_date = defaultdict(list)
+    for appt in all_appts:
+        if appt.service is None:
+            continue
+        appt_date = appt.scheduled_at.date()
+        end = appt.scheduled_at + timedelta(minutes=appt.service.duration_minutes + BUFFER_MINUTES)
+        busy_by_date[appt_date].append((appt.scheduled_at, end))
+
+    available = []
+    current = check_start
+    while current <= check_end:
+        if _has_slots(current, service.duration_minutes, busy_by_date[current], today):
+            available.append(current.isoformat())
+        current += timedelta(days=1)
+
+    return available
 
 
 # ── Availability ──────────────────────────────────────────────────────────────

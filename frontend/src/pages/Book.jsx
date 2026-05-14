@@ -168,9 +168,21 @@ function DateTimeStep({ service, selectedDate, selectedTime, onDateSelect, onTim
   const [viewYear,  setViewYear]  = useState(today.getFullYear())
   const [viewMonth, setViewMonth] = useState(today.getMonth())
 
-  const [slots,        setSlots]        = useState([])
-  const [loadingSlots, setLoadingSlots] = useState(false)
-  const [slotsError,   setSlotsError]   = useState('')
+  const [slots,         setSlots]         = useState([])
+  const [loadingSlots,  setLoadingSlots]  = useState(false)
+  const [slotsError,    setSlotsError]    = useState('')
+  const [availableDates, setAvailableDates] = useState(new Set())
+  const [loadingDates,  setLoadingDates]  = useState(false)
+
+  // Fetch which dates in the current month have at least one open slot
+  useEffect(() => {
+    setLoadingDates(true)
+    setAvailableDates(new Set())
+    api.get('/public/available-dates', { params: { service_id: service.id, year: viewYear, month: viewMonth + 1 } })
+      .then(r => setAvailableDates(new Set(r.data)))
+      .catch(() => {})
+      .finally(() => setLoadingDates(false))
+  }, [service.id, viewYear, viewMonth])
 
   // Fetch slots when a date is picked
   useEffect(() => {
@@ -184,9 +196,9 @@ function DateTimeStep({ service, selectedDate, selectedTime, onDateSelect, onTim
   }, [selectedDate, service.id])
 
   // Build calendar grid
-  const firstDay   = new Date(viewYear, viewMonth, 1).getDay()
+  const firstDay    = new Date(viewYear, viewMonth, 1).getDay()
   const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate()
-  const maxDate    = new Date(today); maxDate.setDate(today.getDate() + 60) // book up to 60 days out
+  const maxDate     = new Date(today); maxDate.setDate(today.getDate() + 60)
 
   function prevMonth() {
     if (viewMonth === 0) { setViewYear(y => y - 1); setViewMonth(11) }
@@ -218,8 +230,9 @@ function DateTimeStep({ service, selectedDate, selectedTime, onDateSelect, onTim
           <button onClick={prevMonth} disabled={!canGoPrev} className="p-1 rounded hover:bg-stone-200 disabled:opacity-30 transition-colors">
             <ChevronLeft size={16} className="text-stone-600" />
           </button>
-          <span className="text-sm font-medium text-stone-700">
+          <span className="text-sm font-medium text-stone-700 flex items-center gap-2">
             {MONTH_NAMES[viewMonth]} {viewYear}
+            {loadingDates && <Loader size={12} className="animate-spin text-stone-400" />}
           </span>
           <button onClick={nextMonth} disabled={!canGoNext} className="p-1 rounded hover:bg-stone-200 disabled:opacity-30 transition-colors">
             <ChevronRight size={16} className="text-stone-600" />
@@ -237,27 +250,39 @@ function DateTimeStep({ service, selectedDate, selectedTime, onDateSelect, onTim
             {Array.from({ length: daysInMonth }).map((_, i) => {
               const day = i + 1
               const pad = n => String(n).padStart(2, '0')
-              const dateStr = `${viewYear}-${pad(viewMonth + 1)}-${pad(day)}`
-              const dt = new Date(viewYear, viewMonth, day)
-              const isPast   = dateStr < todayStr
-              const isFuture = dt > maxDate
-              const isDisabled = isPast || isFuture
+              const dateStr    = `${viewYear}-${pad(viewMonth + 1)}-${pad(day)}`
+              const dt         = new Date(viewYear, viewMonth, day)
+              const isPast     = dateStr < todayStr
+              const isFuture   = dt > maxDate
+              const isBooked   = !loadingDates && !isPast && !isFuture && !availableDates.has(dateStr)
+              const isDisabled = isPast || isFuture || isBooked
               const isSelected = dateStr === selectedDate
+              const isToday    = dateStr === todayStr
 
               return (
                 <button
                   key={day}
                   disabled={isDisabled}
                   onClick={() => { onDateSelect(dateStr); onTimeSelect('') }}
-                  className={`aspect-square flex items-center justify-center rounded-lg text-sm transition-all ${
+                  title={isBooked ? 'Fully booked' : undefined}
+                  className={`aspect-square flex flex-col items-center justify-center rounded-lg text-sm transition-all relative ${
                     isSelected
                       ? 'bg-stone-800 text-white font-medium'
                       : isDisabled
                       ? 'text-stone-200 cursor-not-allowed'
-                      : 'hover:bg-stone-100 text-stone-700'
+                      : 'hover:bg-stone-100 text-stone-700 cursor-pointer'
                   }`}
                 >
                   {day}
+                  {/* Availability dot — green when open, none when loading or past */}
+                  {!isPast && !isFuture && !loadingDates && (
+                    <span className={`absolute bottom-1 w-1 h-1 rounded-full ${
+                      isSelected ? 'bg-white/60' : availableDates.has(dateStr) ? 'bg-emerald-400' : 'bg-stone-300'
+                    }`} />
+                  )}
+                  {isToday && !isSelected && (
+                    <span className="absolute top-1 right-1 w-1 h-1 rounded-full bg-stone-400" />
+                  )}
                 </button>
               )
             })}
