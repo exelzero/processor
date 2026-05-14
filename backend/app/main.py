@@ -1,13 +1,19 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+
+from app.limiter import limiter
 
 from app.database import engine, Base
 from app.models import patient, service, appointment, product, promotion, sale  # noqa: F401 — registers models
-from app.routes import auth, patients, services, appointments, metrics, analytics, products, promotions, sales
+from app.routes import auth, patients, services, appointments, metrics, analytics, products, promotions, sales, public
 
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Processor API", version="1.0.0")
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.add_middleware(
     CORSMiddleware,
@@ -26,6 +32,7 @@ app.include_router(analytics.router, prefix="/api/analytics", tags=["analytics"]
 app.include_router(products.router, prefix="/api/products", tags=["products"])
 app.include_router(promotions.router, prefix="/api/promotions", tags=["promotions"])
 app.include_router(sales.router, prefix="/api/sales", tags=["sales"])
+app.include_router(public.router, prefix="/api/public", tags=["public"])
 
 
 @app.get("/api/health")
