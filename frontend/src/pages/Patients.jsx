@@ -5,6 +5,7 @@ import PageHeader from '../components/PageHeader'
 import SlidePanel from '../components/SlidePanel'
 import DataTable from '../components/DataTable'
 import Field from '../components/Field'
+import PatientDocuments from '../components/PatientDocuments'
 
 /**
  * Patients page — searchable list of all patients with inline edit/delete.
@@ -161,6 +162,8 @@ export default function Patients() {
             {saving ? 'Saving…' : editId ? 'Update Patient' : 'Create Patient'}
           </button>
         </form>
+
+        {editId && <PatientDocuments patientId={editId} />}
       </SlidePanel>
     </div>
   )

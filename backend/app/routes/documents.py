@@ -25,7 +25,6 @@ import uuid
 import urllib.parse
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
-from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from datetime import datetime
@@ -158,11 +157,15 @@ def download_document(
     db: Session = Depends(get_db),
     _=Depends(verify_token),
 ):
-    """Return a presigned S3 URL and redirect the client to it.
+    """Return a presigned S3 URL as JSON.
 
-    The redirect (307) sends the client directly to S3.  The API server is not
-    in the data path — it only generates and signs the URL.  This keeps large
-    file transfers off the API process entirely.
+    Browser clients can't send an Authorization header on a plain navigation
+    (window.open / <a href>), so a server-side redirect would strip auth.
+    Instead, we return the URL as JSON — the client receives it via Axios
+    (which carries the token), then opens the presigned URL directly.
+    The presigned URL is self-authenticating (HMAC in the query string) and
+    expires after PRESIGN_TTL_SECONDS, so no auth header is needed for the
+    final fetch from S3/MinIO.
     """
     doc = db.get(PatientDocument, doc_id)
     if not doc or doc.patient_id != patient_id:
@@ -183,8 +186,7 @@ def download_document(
         },
         ExpiresIn=PRESIGN_TTL_SECONDS,
     )
-    # 307 Temporary Redirect — preserves the HTTP method (GET stays GET).
-    return RedirectResponse(url=url, status_code=307)
+    return {"url": url}
 
 
 @router.delete("/{doc_id}", status_code=204)
