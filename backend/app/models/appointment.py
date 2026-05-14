@@ -35,5 +35,17 @@ class Appointment(Base):
 
     # Forward-reference strings resolve via the TYPE_CHECKING import without
     # triggering a runtime circular import.
+    #
+    # relationship() default loading strategy is "select" (lazy): the first time
+    # code accesses appt.patient, SQLAlchemy issues a separate SELECT to load it.
+    # With n appointments this causes N+1 queries.  Routes that enumerate many
+    # appointments should override this at query time with joinedload():
+    #
+    #   db.query(Appointment).options(joinedload(Appointment.patient))
+    #
+    # That rewrites the query to a single LEFT OUTER JOIN, loading all patients
+    # in one round-trip regardless of n.  Lazy loading is still the right default
+    # here — some routes (get-by-id, status patch) access only one row and do not
+    # need the joined data at all.
     patient: Mapped["Patient"] = relationship("Patient")
     service: Mapped["Service"] = relationship("Service")

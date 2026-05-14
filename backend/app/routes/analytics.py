@@ -1,7 +1,7 @@
 from collections import defaultdict
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, case
 
 from app.database import get_db
 from app.auth import verify_token
@@ -24,6 +24,9 @@ def revenue_trend(db: Session = Depends(get_db), _=Depends(verify_token)):
             func.sum(Service.price).label('revenue'),
             func.count(Appointment.id).label('count'),
         )
+        # INNER JOIN — only rows where both sides match are kept.
+        # An appointment without a matching service row is excluded.
+        # Emits: FROM appointments JOIN services ON services.id = appointments.service_id
         .join(Service, Appointment.service_id == Service.id)
         .filter(Appointment.status == 'completed')
         .group_by(func.strftime('%Y-%m', Appointment.scheduled_at))
@@ -211,7 +214,10 @@ def client_insights(db: Session = Depends(get_db), _=Depends(verify_token)):
     one_time = sum(1 for r in visit_counts if r.visits == 1)
     returning = sum(1 for r in visit_counts if r.visits > 1)
 
-    # Top 10 clients by completed revenue
+    # Top 10 clients by completed revenue.
+    # Two chained INNER JOINs: Patient → Appointment → Service.
+    # Patients with no completed appointments (or whose appointments have no
+    # matching service) are excluded from both the count and the revenue sum.
     top_rows = (
         db.query(
             Patient.first_name,
@@ -238,6 +244,59 @@ def client_insights(db: Session = Depends(get_db), _=Depends(verify_token)):
         'retention': {'one_time': one_time, 'returning': returning},
         'top_clients': top_clients,
     }
+
+
+@router.get('/service-utilization')
+def service_utilization(db: Session = Depends(get_db), _=Depends(verify_token)):
+    """
+    All services with their booking counts — including services never booked.
+
+    INNER JOIN vs LEFT OUTER JOIN:
+      INNER JOIN  — keeps only rows where both sides match.  A service with
+                    zero appointments would be dropped entirely.
+      LEFT OUTER JOIN — keeps every row from the left table (Service) and fills
+                    appointment columns with NULL when there is no match.
+                    Services never booked appear with count=0 instead of being
+                    silently excluded.
+
+    SQLAlchemy's .join() emits INNER JOIN by default.
+    Passing isouter=True (or using .outerjoin()) switches to LEFT OUTER JOIN:
+
+      SELECT services.name, services.category, COUNT(appointments.id)
+      FROM services
+      LEFT OUTER JOIN appointments ON appointments.service_id = services.id
+      GROUP BY services.id
+    """
+    rows = (
+        db.query(
+            Service.name,
+            Service.category,
+            Service.price,
+            func.count(Appointment.id).label('total_bookings'),
+            func.sum(
+                # case() is portable across all SQL backends (SQLite, Postgres, MySQL).
+                # func.iif() works only on SQLite ≥ 3.32 and SQL Server.
+                case((Appointment.status == 'completed', 1), else_=0)
+            ).label('completed'),
+        )
+        # isouter=True → LEFT OUTER JOIN: services with no appointments are
+        # retained with Appointment columns NULL, so COUNT(appointments.id)
+        # yields 0 (COUNT ignores NULLs) rather than omitting the service.
+        .outerjoin(Appointment, Appointment.service_id == Service.id)
+        .group_by(Service.id)
+        .order_by(func.count(Appointment.id).desc())
+        .all()
+    )
+    return [
+        {
+            'service': r.name,
+            'category': r.category,
+            'price': r.price,
+            'total_bookings': r.total_bookings,
+            'completed': r.completed or 0,
+        }
+        for r in rows
+    ]
 
 
 @router.get('/sequence-gaps')

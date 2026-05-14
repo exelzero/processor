@@ -1,6 +1,6 @@
 from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from pydantic import BaseModel
 from datetime import datetime
 
@@ -32,7 +32,33 @@ def _enrich(appt: Appointment) -> dict:
 
 @router.get("/")
 def list_appointments(db: Session = Depends(get_db), _=Depends(verify_token)):
-    appts = db.query(Appointment).order_by(Appointment.scheduled_at).all()
+    # Without joinedload, SQLAlchemy lazy-loads each relationship on first access.
+    # _enrich() touches appt.patient and appt.service for every row, so n
+    # appointments → 2n extra SELECT statements (N+1 problem).
+    #
+    # joinedload rewrites the query to a single LEFT OUTER JOIN per relationship:
+    #
+    #   SELECT appointments.*, patients.*, services.*
+    #   FROM appointments
+    #   LEFT OUTER JOIN patients ON patients.id = appointments.patient_id
+    #   LEFT OUTER JOIN services ON services.id = appointments.service_id
+    #
+    # One round-trip regardless of n.  SQLAlchemy populates the .patient and
+    # .service attributes from the joined columns, so _enrich() finds them
+    # already loaded and issues no further queries.
+    #
+    # LEFT OUTER JOIN (not INNER) is intentional: an appointment whose FK points
+    # to a deleted patient or service still appears in the list with a None
+    # relationship — _enrich() guards against that with `if appt.patient`.
+    appts = (
+        db.query(Appointment)
+        .options(
+            joinedload(Appointment.patient),
+            joinedload(Appointment.service),
+        )
+        .order_by(Appointment.scheduled_at)
+        .all()
+    )
     return [_enrich(a) for a in appts]
 
 
