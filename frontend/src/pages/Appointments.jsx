@@ -1,12 +1,11 @@
 import { useState } from 'react'
 import { useAppointments } from '../hooks/useAppointments'
-import { usePatients } from '../hooks/usePatients'
-import { useServices } from '../hooks/useServices'
 import PageHeader from '../components/PageHeader'
 import SlidePanel from '../components/SlidePanel'
 import DataTable from '../components/DataTable'
 import StatusBadge from '../components/StatusBadge'
 import { formatDate, formatTime, formatCurrency, toDatetimeLocal } from '../utils/format'
+import api from '../api'
 
 /**
  * Appointments page — full list of all appointments with status management.
@@ -16,8 +15,9 @@ import { formatDate, formatTime, formatCurrency, toDatetimeLocal } from '../util
  * after the client leaves. Creating or editing an appointment opens the
  * SlidePanel with patient + service selectors.
  *
- * The page loads three hooks in parallel: appointments, patients (for the
- * dropdown), and services (for the dropdown and price display).
+ * Patients and services are fetched lazily — only when the booking panel
+ * opens for the first time — to avoid two extra network requests on every
+ * page visit just to populate dropdowns the user may never open.
  */
 
 const STATUS_FILTERS = ['all', 'scheduled', 'completed', 'cancelled']
@@ -28,8 +28,19 @@ const EMPTY_FORM = {
 
 export default function Appointments() {
   const { appointments, loading, create, update, updateStatus, remove } = useAppointments()
-  const { patients } = usePatients()
-  const { services } = useServices()
+
+  // Dropdown data — fetched once on first panel open, then reused
+  const [patients, setPatients] = useState([])
+  const [services, setServices] = useState([])
+  const [dropdownsLoaded, setDropdownsLoaded] = useState(false)
+
+  async function loadDropdowns() {
+    if (dropdownsLoaded) return
+    const [p, s] = await Promise.all([api.get('/patients/'), api.get('/services/')])
+    setPatients(p.data)
+    setServices(s.data)
+    setDropdownsLoaded(true)
+  }
 
   const [filterStatus, setFilterStatus] = useState('all')
   const [panelOpen, setPanelOpen] = useState(false)
@@ -44,6 +55,7 @@ export default function Appointments() {
     setForm(EMPTY_FORM)
     setEditId(null)
     setSaveError('')
+    loadDropdowns()
     setPanelOpen(true)
   }
 
@@ -57,6 +69,7 @@ export default function Appointments() {
     })
     setEditId(appt.id)
     setSaveError('')
+    loadDropdowns()
     setPanelOpen(true)
   }
 
