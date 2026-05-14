@@ -5,9 +5,10 @@
  * unknown values fall back to a neutral grey so nothing breaks silently.
  */
 const STATUS_STYLES = {
-  scheduled: 'bg-blue-50 text-blue-600',
-  completed: 'bg-emerald-50 text-emerald-600',
-  cancelled: 'bg-stone-100 text-stone-400',
+  scheduled:  'bg-blue-50 text-blue-600',
+  completed:  'bg-emerald-50 text-emerald-600',
+  cancelled:  'bg-stone-100 text-stone-400',
+  'no-show':  'bg-red-50 text-red-400',
 }
 
 /**
