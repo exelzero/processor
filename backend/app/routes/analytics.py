@@ -173,8 +173,10 @@ def client_insights(db: Session = Depends(get_db), _=Depends(verify_token)):
 
     CTE vs subquery:
       Both express a named intermediate result set.  The difference is scope
-      and readability, not performance (SQLite's query planner treats them
-      identically; Postgres may materialise a CTE once and reuse it).
+      and readability, not performance (both SQLite and Postgres 12+ inline
+      CTEs into the query plan by default, identical to a subquery; Postgres
+      forced materialisation requires the explicit MATERIALIZED keyword, which
+      SQLAlchemy does not emit).
 
       Subquery  — anonymous inline expression.  The DB sees it once, but the
                   Python source buries it inside the outer query.  If you need
@@ -188,9 +190,10 @@ def client_insights(db: Session = Depends(get_db), _=Depends(verify_token)):
                   returns a named subquery object whose columns are accessed
                   the same way as .subquery().
 
-    Here first_appt_cte is referenced only once, so the practical difference
-    is clarity: the CTE name makes the intent explicit in both Python and the
-    emitted SQL ("WITH first_appt AS (...)").
+    Here the CTE's month column is referenced three times in the outer query
+    (SELECT, GROUP BY, ORDER BY).  The practical benefit is clarity: the name
+    "first_appt" makes the intent explicit in both Python and the emitted SQL
+    ("WITH first_appt AS (...)").
     """
     # Per-patient earliest appointment month.
     # .cte() emits: WITH first_appt AS (SELECT ... FROM appointments GROUP BY patient_id)
