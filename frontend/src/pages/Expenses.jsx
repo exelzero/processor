@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Plus, Pencil, Trash2 } from 'lucide-react'
+import { Pencil, Trash2 } from 'lucide-react'
 import { useExpenses } from '../hooks/useExpenses'
 import api from '../api'
 import PageHeader from '../components/PageHeader'
@@ -142,16 +142,8 @@ export default function Expenses() {
     <div className="p-8 h-full flex flex-col min-h-0">
       <PageHeader
         title="Expenses"
-        subtitle="Track business spending"
-        action={
-          <button
-            onClick={openCreate}
-            className="flex items-center gap-2 px-4 py-2 bg-stone-800 text-white text-sm rounded-lg hover:bg-stone-700 transition-colors"
-          >
-            <Plus size={15} />
-            Add Expense
-          </button>
-        }
+        action="Add Expense"
+        onAction={openCreate}
       />
 
       <div className="flex items-center gap-4 mb-6 flex-wrap">
