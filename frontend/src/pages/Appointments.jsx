@@ -38,7 +38,8 @@ export default function Appointments() {
   function openNew() { setForm(empty); setEditId(null); setSaveError(''); setShowForm(true) }
   function openEdit(a) {
     const dt = new Date(a.scheduled_at)
-    const local = new Date(dt.getTime() - dt.getTimezoneOffset() * 60000).toISOString().slice(0, 16)
+    const pad = n => String(n).padStart(2, '0')
+    const local = `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}T${pad(dt.getHours())}:${pad(dt.getMinutes())}`
     setForm({ patient_id: String(a.patient_id), service_id: String(a.service_id), scheduled_at: local, status: a.status, notes: a.notes || '' })
     setEditId(a.id)
     setShowForm(true)
