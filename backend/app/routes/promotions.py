@@ -1,8 +1,8 @@
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 
 from app.database import get_db
 from app.auth import verify_token
@@ -21,6 +21,16 @@ class PromotionIn(BaseModel):
     end_date: datetime
     active: bool = True
     max_uses: Optional[int] = None
+
+    @model_validator(mode='after')
+    def validate_dates_and_value(self):
+        if self.end_date <= self.start_date:
+            raise ValueError('end_date must be after start_date')
+        if self.discount_type == 'percentage' and not (0 < self.discount_value <= 100):
+            raise ValueError('Percentage discount must be between 0 and 100')
+        if self.discount_type == 'fixed' and self.discount_value <= 0:
+            raise ValueError('Fixed discount must be greater than 0')
+        return self
 
 
 class PromotionOut(PromotionIn):
@@ -52,7 +62,7 @@ def validate_code(code: str, subtotal: float = 0, db: Session = Depends(get_db),
     promo = db.query(Promotion).filter(Promotion.code == code.upper()).first()
     if not promo or not promo.active:
         raise HTTPException(status_code=404, detail='Invalid or inactive promo code')
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
     if now < promo.start_date or now > promo.end_date:
         raise HTTPException(status_code=400, detail='Promo code is not currently valid')
     if promo.max_uses and promo.uses_count >= promo.max_uses:

@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey
 from sqlalchemy.orm import relationship
 from app.database import Base
@@ -16,7 +16,7 @@ class Sale(Base):
     total           = Column(Float, nullable=False)
     status          = Column(String, default='completed')  # completed | refunded | partially_refunded
     notes           = Column(String)
-    created_at      = Column(DateTime, default=datetime.utcnow)
+    created_at      = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     patient   = relationship('Patient')
     promotion = relationship('Promotion')
@@ -43,7 +43,7 @@ class SaleReturn(Base):
 
     id          = Column(Integer, primary_key=True, index=True)
     sale_id     = Column(Integer, ForeignKey('sales.id'), nullable=False)
-    return_date = Column(DateTime, nullable=False, default=datetime.utcnow)
+    return_date = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
     amount      = Column(Float, nullable=False)
     reason      = Column(String)
     notes       = Column(String)

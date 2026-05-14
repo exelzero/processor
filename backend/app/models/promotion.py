@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime
 from app.database import Base
 
@@ -17,4 +17,4 @@ class Promotion(Base):
     active         = Column(Boolean, default=True)
     max_uses       = Column(Integer)                  # null = unlimited
     uses_count     = Column(Integer, default=0)
-    created_at     = Column(DateTime, default=datetime.utcnow)
+    created_at     = Column(DateTime, default=lambda: datetime.now(timezone.utc))

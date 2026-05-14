@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime
 from app.database import Base
 
@@ -15,4 +15,4 @@ class Product(Base):
     cost        = Column(Float)
     sku         = Column(String, unique=True, nullable=False)
     active      = Column(Boolean, default=True)
-    created_at  = Column(DateTime, default=datetime.utcnow)
+    created_at  = Column(DateTime, default=lambda: datetime.now(timezone.utc))

@@ -1,8 +1,9 @@
 from typing import List, Optional
-from datetime import datetime
+from datetime import date, datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.orm import Session
-from pydantic import BaseModel
+from sqlalchemy import text
+from sqlalchemy.orm import Session, joinedload, selectinload
+from pydantic import BaseModel, field_validator
 
 from app.database import get_db
 from app.auth import verify_token
@@ -18,6 +19,13 @@ router = APIRouter()
 class SaleItemIn(BaseModel):
     product_id: int
     quantity: int = 1
+
+    @field_validator('quantity')
+    @classmethod
+    def quantity_positive(cls, v):
+        if v < 1:
+            raise ValueError('Quantity must be at least 1')
+        return v
 
 
 class SaleIn(BaseModel):
@@ -73,6 +81,22 @@ class ReturnIn(BaseModel):
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
+def _load_sale(db: Session, sale_id: int) -> Sale:
+    """Fetch a sale with all relationships eagerly loaded (avoids N+1)."""
+    sale = (
+        db.query(Sale)
+        .options(
+            joinedload(Sale.patient),
+            joinedload(Sale.promotion),
+            selectinload(Sale.items).joinedload(SaleItem.product),
+            selectinload(Sale.returns),
+        )
+        .filter(Sale.id == sale_id)
+        .first()
+    )
+    return sale
+
+
 def _enrich(sale: Sale) -> dict:
     return {
         'id':              sale.id,
@@ -122,13 +146,27 @@ def list_sales(
     db: Session = Depends(get_db),
     _=Depends(verify_token),
 ):
-    q = db.query(Sale)
+    q = (
+        db.query(Sale)
+        .options(
+            joinedload(Sale.patient),
+            joinedload(Sale.promotion),
+            selectinload(Sale.items).joinedload(SaleItem.product),
+            selectinload(Sale.returns),
+        )
+    )
     if status:
         q = q.filter(Sale.status == status)
     if start:
-        q = q.filter(Sale.sale_date >= datetime.fromisoformat(start))
+        try:
+            q = q.filter(Sale.sale_date >= datetime.combine(date.fromisoformat(start), datetime.min.time()))
+        except ValueError:
+            raise HTTPException(status_code=400, detail='Invalid start date format (expected YYYY-MM-DD)')
     if end:
-        q = q.filter(Sale.sale_date <= datetime.fromisoformat(end + 'T23:59:59'))
+        try:
+            q = q.filter(Sale.sale_date <= datetime.combine(date.fromisoformat(end), datetime.max.time()))
+        except ValueError:
+            raise HTTPException(status_code=400, detail='Invalid end date format (expected YYYY-MM-DD)')
     sales = q.order_by(Sale.sale_date.desc()).all()
     return [_enrich(s) for s in sales]
 
@@ -145,6 +183,8 @@ def create_sale(data: SaleIn, db: Session = Depends(get_db), _=Depends(verify_to
         product = db.get(Product, item_in.product_id)
         if not product:
             raise HTTPException(status_code=404, detail=f'Product {item_in.product_id} not found')
+        if not product.active:
+            raise HTTPException(status_code=400, detail=f'Product "{product.name}" is no longer available')
         line_total = round(product.price * item_in.quantity, 2)
         subtotal += line_total
         sale_items.append(SaleItem(
@@ -162,13 +202,20 @@ def create_sale(data: SaleIn, db: Session = Depends(get_db), _=Depends(verify_to
         promo = db.query(Promotion).filter(Promotion.code == data.promo_code.upper()).first()
         if not promo or not promo.active:
             raise HTTPException(status_code=400, detail='Invalid promo code')
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        if now < promo.start_date or now > promo.end_date:
+            raise HTTPException(status_code=400, detail='Promo code is not currently valid')
         if promo.min_purchase and subtotal < promo.min_purchase:
             raise HTTPException(status_code=400, detail=f'Minimum purchase ${promo.min_purchase:.2f} required')
         if promo.max_uses and promo.uses_count >= promo.max_uses:
             raise HTTPException(status_code=400, detail='Promo code has reached its limit')
         discount = round(subtotal * promo.discount_value / 100, 2) if promo.discount_type == 'percentage' else min(promo.discount_value, subtotal)
         promotion_id = promo.id
-        promo.uses_count += 1
+        # Atomic increment to avoid race condition under concurrent requests
+        db.execute(
+            text('UPDATE promotions SET uses_count = uses_count + 1 WHERE id = :id'),
+            {'id': promo.id},
+        )
 
     sale = Sale(
         patient_id=data.patient_id,
@@ -186,13 +233,14 @@ def create_sale(data: SaleIn, db: Session = Depends(get_db), _=Depends(verify_to
         item.sale_id = sale.id
         db.add(item)
     db.commit()
-    db.refresh(sale)
+
+    sale = _load_sale(db, sale.id)
     return _enrich(sale)
 
 
 @router.get('/{sale_id}')
 def get_sale(sale_id: int, db: Session = Depends(get_db), _=Depends(verify_token)):
-    sale = db.get(Sale, sale_id)
+    sale = _load_sale(db, sale_id)
     if not sale:
         raise HTTPException(status_code=404, detail='Sale not found')
     return _enrich(sale)
@@ -200,25 +248,29 @@ def get_sale(sale_id: int, db: Session = Depends(get_db), _=Depends(verify_token
 
 @router.post('/{sale_id}/return', status_code=201)
 def create_return(sale_id: int, data: ReturnIn, db: Session = Depends(get_db), _=Depends(verify_token)):
-    sale = db.get(Sale, sale_id)
+    sale = _load_sale(db, sale_id)
     if not sale:
         raise HTTPException(status_code=404, detail='Sale not found')
     if sale.status == 'refunded':
         raise HTTPException(status_code=400, detail='Sale is already fully refunded')
-    if data.amount <= 0 or data.amount > sale.total:
-        raise HTTPException(status_code=400, detail=f'Return amount must be between $0.01 and ${sale.total:.2f}')
+
+    already_returned = sum(r.amount for r in sale.returns)
+    remaining = round(sale.total - already_returned, 2)
+    if data.amount <= 0 or data.amount > remaining:
+        raise HTTPException(status_code=400, detail=f'Return amount must be between $0.01 and ${remaining:.2f}')
 
     ret = SaleReturn(
         sale_id=sale_id,
-        return_date=datetime.utcnow(),
+        return_date=datetime.now(timezone.utc).replace(tzinfo=None),
         amount=round(data.amount, 2),
         reason=data.reason,
         notes=data.notes,
     )
     db.add(ret)
 
-    total_returned = sum(r.amount for r in sale.returns) + data.amount
+    total_returned = already_returned + data.amount
     sale.status = 'refunded' if total_returned >= sale.total else 'partially_refunded'
     db.commit()
-    db.refresh(sale)
+
+    sale = _load_sale(db, sale_id)
     return _enrich(sale)

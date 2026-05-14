@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, Fragment } from 'react'
 import { ShoppingBag, Package, Tag, RotateCcw, Plus, ChevronDown, ChevronUp } from 'lucide-react'
 import { useSales } from '../hooks/useSales'
 import { useProducts } from '../hooks/useProducts'
@@ -217,29 +217,44 @@ function TransactionsTab() {
             {loading && <LoadingRow />}
             {!loading && sales.length === 0 && <EmptyRow message="No transactions found." />}
             {!loading && sales.map(sale => (
-              <>
+              <Fragment key={sale.id}>
                 <tr
-                  key={sale.id}
                   className="hover:bg-stone-50 cursor-pointer transition-colors"
-                  onClick={() => openSale(sale)}
+                  onClick={() => setExpanded(prev => prev === sale.id ? null : sale.id)}
                 >
                   <Td muted>{formatDate(sale.sale_date)}</Td>
                   <Td>{sale.patient_name}</Td>
-                  <Td muted>{sale.items.length}</Td>
+                  <Td muted>
+                    <span className="flex items-center gap-1">
+                      {sale.items.length}
+                      {expanded === sale.id
+                        ? <ChevronUp size={12} className="text-stone-400" />
+                        : <ChevronDown size={12} className="text-stone-400" />}
+                    </span>
+                  </Td>
                   <Td muted>{sale.promo_code ?? '—'}</Td>
                   <Td right muted>{formatCurrency(sale.subtotal)}</Td>
                   <Td right muted>{sale.discount_amount > 0 ? `−${formatCurrency(sale.discount_amount)}` : '—'}</Td>
                   <Td right><span className="font-medium text-stone-800">{formatCurrency(sale.total)}</span></Td>
-                  <Td><SaleStatusBadge status={sale.status} /></Td>
+                  <Td>
+                    <div className="flex items-center gap-2">
+                      <SaleStatusBadge status={sale.status} />
+                      <button
+                        onClick={e => { e.stopPropagation(); openSale(sale) }}
+                        className="text-xs text-stone-400 hover:text-stone-700 transition-colors"
+                      >
+                        Details
+                      </button>
+                    </div>
+                  </Td>
                 </tr>
-                {/* Inline item expansion — only shown when expanded */}
                 {expanded === sale.id && (
-                  <tr key={`${sale.id}-items`} className="bg-stone-50">
+                  <tr className="bg-stone-50">
                     <td colSpan={8} className="px-6 pb-4">
                       <div className="text-xs text-stone-500 space-y-1 pt-1">
                         {sale.items.map(item => (
                           <div key={item.id} className="flex justify-between">
-                            <span>{item.product_name} <span className="text-stone-400">× {item.quantity}</span></span>
+                            <span>{item.product_name} <span className="text-stone-400">× {item.quantity} @ {formatCurrency(item.unit_price)}</span></span>
                             <span>{formatCurrency(item.total)}</span>
                           </div>
                         ))}
@@ -247,7 +262,7 @@ function TransactionsTab() {
                     </td>
                   </tr>
                 )}
-              </>
+              </Fragment>
             ))}
           </tbody>
         </table>
@@ -607,8 +622,6 @@ function PromotionsTab() {
   const [saveError, setSaveError]   = useState('')
   const [showExpired, setShowExpired] = useState(false)
 
-  const now = new Date().toISOString()
-
   function openNew() {
     setForm(EMPTY_PROMO)
     setEditId(null)
@@ -660,9 +673,10 @@ function PromotionsTab() {
     await deactivate(id)
   }
 
-  const visible = showExpired ? promotions : promotions.filter(p => p.active)
+  const visible = showExpired ? promotions : promotions.filter(p => p.active && new Date().toISOString() <= p.end_date)
 
   function promoStatus(p) {
+    const now = new Date().toISOString()
     if (!p.active) return { label: 'Inactive', style: 'bg-stone-100 text-stone-400' }
     if (now < p.start_date) return { label: 'Upcoming', style: 'bg-blue-50 text-blue-500' }
     if (now > p.end_date)   return { label: 'Expired', style: 'bg-red-50 text-red-400' }
@@ -679,7 +693,7 @@ function PromotionsTab() {
             onChange={e => setShowExpired(e.target.checked)}
             className="rounded border-stone-300"
           />
-          Show inactive
+          Show inactive / expired
         </label>
         <button
           onClick={openNew}
