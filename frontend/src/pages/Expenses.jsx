@@ -92,6 +92,10 @@ export default function Expenses() {
       setFormError('Category, description, amount and date are required.')
       return
     }
+    if (parseFloat(form.amount) <= 0) {
+      setFormError('Amount must be greater than zero.')
+      return
+    }
     setSaving(true)
     try {
       const payload = {
@@ -109,7 +113,7 @@ export default function Expenses() {
       setPanelOpen(false)
       load({ category: filterCat || undefined, month: filterMonth || undefined })
     } catch (e) {
-      setFormError(e.message)
+      setFormError(e.response?.data?.detail ?? e.message)
     } finally {
       setSaving(false)
     }
