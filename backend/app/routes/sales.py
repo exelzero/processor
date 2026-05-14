@@ -191,7 +191,7 @@ def create_sale(data: SaleIn, db: Session = Depends(get_db), _=Depends(verify_to
         raise HTTPException(status_code=400, detail='Sale must include at least one item')
 
     # Build line items and compute subtotal.
-    # Lock product rows immediately so concurrent sales can't double-deduct stock.
+    # with_for_update acquires row-level locks (effective on PostgreSQL; no-op on SQLite).
     sale_items = []
     products_by_id: dict = {}
     subtotal = 0.0
@@ -249,8 +249,7 @@ def create_sale(data: SaleIn, db: Session = Depends(get_db), _=Depends(verify_to
     for item in sale_items:
         item.sale_id = sale.id
         db.add(item)
-        # Deduct from on-shelf stock using the already-locked product row.
-        # Allow negative (oversell) so the sale isn't blocked — the UI shows a low-stock warning.
+        # Deduct from on-shelf stock. Allow negative (oversell) so the sale isn't blocked — the UI shows a low-stock warning.
         product = products_by_id[item.product_id]
         product.stock_qty -= item.quantity
         db.add(StockMovement(

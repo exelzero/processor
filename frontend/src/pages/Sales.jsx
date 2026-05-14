@@ -503,7 +503,7 @@ function ProductsTab() {
     const qty = parseInt(stockQty, 10)
     const isOrderOrReceive = stockPanel.mode === 'order' || stockPanel.mode === 'receive'
     if (isNaN(qty) || qty === 0) { setStockError('Enter a valid non-zero quantity.'); return }
-    if (isOrderOrReceive && qty < 1) { setStockError('Quantity must be at least 1.'); return }
+    if (isOrderOrReceive && qty < 1) { setStockError(qty < 0 ? 'Quantity cannot be negative.' : 'Quantity must be at least 1.'); return }
     setStockSaving(true)
     setStockError('')
     try {

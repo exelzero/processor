@@ -17,7 +17,7 @@ class StockMovement(Base):
 
     id             = Column(Integer, primary_key=True, index=True)
     product_id     = Column(Integer, ForeignKey("products.id"), nullable=False, index=True)
-    movement_type  = Column(Enum(*MOVEMENT_TYPES, name="movement_type_enum"), nullable=False, index=True)
+    movement_type  = Column(Enum(*MOVEMENT_TYPES, name="movement_type_enum", create_constraint=True, validate_strings=True), nullable=False, index=True)
     # Positive = stock in, negative = stock out.  Both qty fields use this convention.
     qty_delta      = Column(Integer, nullable=False)          # change to stock_qty
     on_order_delta = Column(Integer, nullable=False, default=0)  # change to stock_on_order
