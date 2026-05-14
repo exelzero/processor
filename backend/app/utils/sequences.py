@@ -77,7 +77,8 @@ def find_gaps(ids: list[int]) -> list[int]:
     scan over the range is O(range_size) rather than O(range_size × n).
 
     Returns an empty list when the sequence is already contiguous or has
-    fewer than two elements.
+    fewer than two elements.  The guard also prevents ValueError from
+    min()/max() on an empty sequence.
     """
     if len(ids) < 2:
         return []
