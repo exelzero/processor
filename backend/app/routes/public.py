@@ -1,3 +1,4 @@
+import bisect
 import re
 from collections import defaultdict
 from datetime import datetime, date, time, timedelta
@@ -200,6 +201,64 @@ def get_available_dates(
     return available
 
 
+# ── Binary-search slot finder ─────────────────────────────────────────────────
+
+def _find_available_slots(
+    busy: list[tuple],
+    open_dt: datetime,
+    close_dt: datetime,
+    slot_duration: timedelta,
+) -> list[str]:
+    """
+    Return HH:MM strings for every open slot in [open_dt, close_dt).
+
+    Overlap detection uses binary search instead of a linear scan:
+
+    1. Sort busy intervals by start time once — O(n log n).
+    2. Separate into two parallel sorted lists: busy_starts and busy_ends.
+    3. For each candidate slot [c, c+d):
+       - bisect_right(busy_starts, c) gives position p such that all intervals
+         at index < p have start ≤ c, and all at index ≥ p have start > c.
+       - Only two intervals can possibly overlap the window:
+           • index p-1: started at or before c — overlaps if its end > c
+           • index p  : starts after c       — overlaps if its start < c+d
+         Every other interval is entirely outside [c, c+d).
+       - Each candidate check is O(log n) via bisect vs O(n) for any().
+
+    Overall: O(n log n) sort + O(s log n) checks = O((n+s) log n)
+    vs the naive O(s × n), where s = candidate slots (~20/day), n = bookings.
+
+    At single-practitioner scale the difference is negligible, but the pattern
+    applies directly to high-volume scheduling systems.
+    """
+    if not busy:
+        slots = []
+        candidate = open_dt
+        while candidate + slot_duration <= close_dt:
+            slots.append(candidate.strftime('%H:%M'))
+            candidate += timedelta(minutes=SLOT_MINUTES)
+        return slots
+
+    sorted_busy  = sorted(busy, key=lambda x: x[0])
+    busy_starts  = [s for s, _ in sorted_busy]
+    busy_ends    = [e for _, e in sorted_busy]
+
+    slots     = []
+    candidate = open_dt
+    while candidate + slot_duration <= close_dt:
+        c   = candidate
+        c_end = candidate + slot_duration
+        p   = bisect.bisect_right(busy_starts, c)
+        conflict = (
+            (p > 0 and busy_ends[p - 1] > c) or
+            (p < len(busy_starts) and busy_starts[p] < c_end)
+        )
+        if not conflict:
+            slots.append(c.strftime('%H:%M'))
+        candidate += timedelta(minutes=SLOT_MINUTES)
+    return slots
+
+
 # ── Availability ──────────────────────────────────────────────────────────────
 
 @router.get('/availability')
@@ -232,15 +291,7 @@ def get_availability(
             earliest += timedelta(minutes=SLOT_MINUTES - remainder)
         open_dt = max(open_dt, earliest.replace(second=0, microsecond=0))
 
-    slots     = []
-    candidate = open_dt
-    while candidate + slot_duration <= close_dt:
-        candidate_end = candidate + slot_duration
-        if not any(candidate < b_end and candidate_end > b_start for b_start, b_end in busy):
-            slots.append(candidate.strftime('%H:%M'))
-        candidate += timedelta(minutes=SLOT_MINUTES)
-
-    return slots
+    return _find_available_slots(busy, open_dt, close_dt, slot_duration)
 
 
 # ── Book appointment ──────────────────────────────────────────────────────────
