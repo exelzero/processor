@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import func, cast, extract, String
 from pydantic import BaseModel, field_validator
-from datetime import date
+from datetime import date, datetime
 
 from app.database import get_db
 from app.auth import verify_token
@@ -34,7 +34,7 @@ class ExpenseIn(BaseModel):
 class ExpenseOut(ExpenseIn):
     id: int
     amount: float  # Decimal serializes as string in JSON; override to float for the response
-    created_at: str
+    created_at: datetime
 
     model_config = {"from_attributes": True}
 
