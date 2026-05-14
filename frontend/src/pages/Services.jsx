@@ -7,6 +7,7 @@ const empty = { name: '', description: '', price: '', duration_minutes: '', cate
 
 export default function Services() {
   const [services, setServices] = useState([])
+  const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState(empty)
   const [editId, setEditId] = useState(null)
@@ -16,8 +17,10 @@ export default function Services() {
   useEffect(() => { load() }, [])
 
   async function load() {
+    setLoading(true)
     const { data } = await api.get('/services/')
     setServices(data)
+    setLoading(false)
   }
 
   function openNew() { setForm(empty); setEditId(null); setSaveError(''); setShowForm(true) }
@@ -61,6 +64,7 @@ export default function Services() {
         </button>
       </div>
 
+      {loading && <p className="text-stone-300 text-sm">Loading…</p>}
       <div className="space-y-6">
         {[...CATEGORIES, uncategorized.length > 0 ? 'Other' : null].filter(Boolean).map(cat => (grouped[cat] ?? uncategorized)?.length > 0 && (
           <div key={cat}>

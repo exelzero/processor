@@ -7,6 +7,7 @@ const empty = { first_name: '', last_name: '', email: '', phone: '', date_of_bir
 
 export default function Patients() {
   const [patients, setPatients] = useState([])
+  const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState(empty)
@@ -17,8 +18,10 @@ export default function Patients() {
   useEffect(() => { load() }, [])
 
   async function load() {
+    setLoading(true)
     const { data } = await api.get('/patients/')
     setPatients(data)
+    setLoading(false)
   }
 
   function openNew() { setForm(empty); setEditId(null); setSaveError(''); setShowForm(true) }
@@ -94,7 +97,10 @@ export default function Patients() {
                 </td>
               </tr>
             ))}
-            {filtered.length === 0 && (
+            {loading && (
+              <tr><td colSpan={5} className="px-5 py-8 text-center text-stone-300 text-sm">Loading…</td></tr>
+            )}
+            {!loading && filtered.length === 0 && (
               <tr><td colSpan={5} className="px-5 py-8 text-center text-stone-300 text-sm">No patients found</td></tr>
             )}
           </tbody>

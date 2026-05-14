@@ -14,6 +14,7 @@ export default function Appointments() {
   const [appointments, setAppointments] = useState([])
   const [patients, setPatients] = useState([])
   const [services, setServices] = useState([])
+  const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState(empty)
   const [editId, setEditId] = useState(null)
@@ -28,8 +29,10 @@ export default function Appointments() {
   }, [])
 
   async function load() {
+    setLoading(true)
     const { data } = await api.get('/appointments/')
     setAppointments(data)
+    setLoading(false)
   }
 
   function openNew() { setForm(empty); setEditId(null); setSaveError(''); setShowForm(true) }
@@ -125,7 +128,10 @@ export default function Appointments() {
                 </td>
               </tr>
             ))}
-            {filtered.length === 0 && (
+            {loading && (
+              <tr><td colSpan={6} className="px-5 py-8 text-center text-stone-300 text-sm">Loading…</td></tr>
+            )}
+            {!loading && filtered.length === 0 && (
               <tr><td colSpan={6} className="px-5 py-8 text-center text-stone-300 text-sm">No appointments found</td></tr>
             )}
           </tbody>
