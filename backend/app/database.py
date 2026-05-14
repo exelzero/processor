@@ -15,6 +15,26 @@ class Base(DeclarativeBase):
 
 
 def get_db():
+    """
+    Dependency provider for a SQLAlchemy Session.
+
+    FastAPI's Depends() system calls this generator for every request that
+    declares `db: Session = Depends(get_db)`.  The yield-based pattern maps
+    directly onto a context manager:
+
+      Code before yield  →  __enter__: open the session
+      yield db           →  provide the value to the route handler
+      finally block      →  __exit__: close the session, always — even if
+                             the handler raises an exception
+
+    This inverts control of the resource lifecycle: the handler declares
+    what it needs (a Session), and FastAPI owns when it is created and
+    destroyed.  The handler never calls db.close() — it cannot forget to.
+
+    FastAPI caches each resolved dependency for the duration of a single
+    request, so if two route parameters both declare Depends(get_db) they
+    receive the same Session instance within that request.
+    """
     db = SessionLocal()
     try:
         yield db
