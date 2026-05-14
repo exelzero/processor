@@ -7,7 +7,7 @@
  * adding an entry to the `nav` array and a corresponding <Route> in App.jsx.
  */
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
-import { LayoutDashboard, Users, CalendarDays, Sparkles, BarChart2, ShoppingBag, Wallet, LogOut } from 'lucide-react'
+import { LayoutDashboard, Users, CalendarDays, Sparkles, BarChart2, ShoppingBag, Wallet, TrendingUp, LogOut } from 'lucide-react'
 
 const nav = [
   { to: '/dashboard',   icon: LayoutDashboard, label: 'Dashboard' },
@@ -17,6 +17,7 @@ const nav = [
   { to: '/analytics',   icon: BarChart2,        label: 'Analytics' },
   { to: '/sales',       icon: ShoppingBag,      label: 'Sales' },
   { to: '/expenses',    icon: Wallet,           label: 'Expenses' },
+  { to: '/runway',      icon: TrendingUp,       label: 'Runway' },
 ]
 
 export default function Layout() {
