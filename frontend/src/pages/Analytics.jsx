@@ -66,11 +66,15 @@ function CardTitle({ children }) {
   )
 }
 
-function KpiCard({ label, value, sub }) {
+function KpiCard({ label, value, sub, highlight }) {
+  const valueColor =
+    highlight === 'green' ? 'text-emerald-600' :
+    highlight === 'red'   ? 'text-red-500' :
+                            'text-stone-800'
   return (
     <Card>
       <p className="text-xs font-medium text-stone-400 uppercase tracking-wider mb-1">{label}</p>
-      <p className="text-2xl font-light text-stone-800">{value}</p>
+      <p className={`text-2xl font-light ${valueColor}`}>{value}</p>
       {sub && <p className="text-xs text-stone-400 mt-0.5">{sub}</p>}
     </Card>
   )
@@ -110,7 +114,12 @@ export default function Analytics() {
   }
 
   // Derived values
-  const totalRevenue = revenueTrend.by_month.reduce((s, r) => s + r.revenue, 0)
+  const serviceRevenue  = revenueTrend.by_month.reduce((s, r) => s + r.revenue, 0)
+  const totalRevenue    = serviceRevenue + productSales.total_revenue
+  const net             = totalRevenue - expensesData.total
+  const totalAppts      = statusTrend.by_month.reduce((s, r) => s + r.completed + r.cancelled + r['no-show'] + r.scheduled, 0)
+  const totalVolume     = totalAppts + productSales.total_transactions
+
   const { cancellation_rate, no_show_rate } = statusTrend
   const completionRate = (() => {
     const past = statusTrend.by_month.reduce((s, r) => s + r.completed + r.cancelled + r['no-show'], 0)
@@ -152,36 +161,37 @@ export default function Analytics() {
         </div>
       </div>
 
-      {/* ── KPI Strip ───────────────────────────────────────────────────────── */}
+      {/* ── Combined KPI Strip ──────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <KpiCard
-          label="Service Revenue"
+          label="Total Revenue"
           value={loading ? '—' : formatCurrency(totalRevenue)}
-          sub="completed appointments"
-        />
-        <KpiCard
-          label="Product Revenue"
-          value={loading ? '—' : formatCurrency(productSales.total_revenue)}
-          sub={`${productSales.total_transactions} transactions`}
+          sub="services + product sales"
         />
         <KpiCard
           label="Total Expenses"
           value={loading ? '—' : formatCurrency(expensesData.total)}
-          sub={expensesData.top_category ? `largest: ${expensesData.top_category}` : undefined}
+          sub="all categories"
         />
         <KpiCard
-          label="Client Retention"
-          value={loading ? '—' : `${clientInsights.retention.returning ?? 0}`}
-          sub="returning clients"
+          label="Net"
+          value={loading ? '—' : (net >= 0 ? `+${formatCurrency(net)}` : `−${formatCurrency(Math.abs(net))}`)}
+          sub={net >= 0 ? 'profitable' : 'deficit'}
+          highlight={loading ? undefined : net >= 0 ? 'green' : 'red'}
+        />
+        <KpiCard
+          label="Total Volume"
+          value={loading ? '—' : totalVolume.toLocaleString()}
+          sub={`${totalAppts} appts · ${productSales.total_transactions} sales`}
         />
       </div>
 
-      {/* ── Revenue ─────────────────────────────────────────────────────────── */}
-      <SectionTitle>Revenue</SectionTitle>
+      {/* ── Service Revenue ─────────────────────────────────────────────────── */}
+      <SectionTitle>Service Revenue (Appointments)</SectionTitle>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
         <Card className="lg:col-span-2">
-          <CardTitle>Monthly Revenue &amp; Volume</CardTitle>
+          <CardTitle>Service Revenue by Month — Appointments Only</CardTitle>
           {monthChartData.length > 0 ? (
             <ResponsiveContainer width="100%" height={220}>
               <ComposedChart data={monthChartData} margin={{ top: 4, right: 8, left: -10, bottom: 0 }}>
@@ -197,7 +207,7 @@ export default function Analytics() {
                 <YAxis yAxisId="cnt" orientation="right" tick={AXIS_STYLE} tickLine={false} axisLine={false} />
                 <Tooltip
                   contentStyle={TOOLTIP_STYLE}
-                  formatter={(v, name) => name === 'revenue' ? [formatCurrency(v), 'Revenue'] : [v, 'Appointments']}
+                  formatter={(v, name) => name === 'revenue' ? [formatCurrency(v), 'Service Revenue'] : [v, 'Appointments']}
                 />
                 <Area yAxisId="rev" type="monotone" dataKey="revenue" stroke={STONE} strokeWidth={2} fill={`url(#${gradientId})`} dot={{ r: 3, fill: STONE, strokeWidth: 0 }} activeDot={{ r: 5, fill: STONE, strokeWidth: 0 }} />
                 <Line yAxisId="cnt" type="monotone" dataKey="count" stroke={AMBER} strokeWidth={2} dot={{ r: 3, fill: AMBER, strokeWidth: 0 }} activeDot={{ r: 5, fill: AMBER, strokeWidth: 0 }} />
@@ -207,7 +217,7 @@ export default function Analytics() {
         </Card>
 
         <Card>
-          <CardTitle>Revenue by Category</CardTitle>
+          <CardTitle>Service Revenue by Category</CardTitle>
           {categoryMix.length > 0 ? (
             <>
               <ResponsiveContainer width="100%" height={160}>
