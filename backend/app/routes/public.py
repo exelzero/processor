@@ -64,8 +64,8 @@ def _busy_intervals(db: Session, target_date: date) -> list[tuple]:
     """
     cache_key = target_date.isoformat()
     cached = _intervals_cache.get(cache_key)
-    if cached is not None:
-        return cached
+    if cached is not LRUCache.MISSING:
+        return cached  # [] is a valid hit — a fully-free day is still worth caching
 
     day_start = datetime.combine(target_date, time.min)
     day_end   = datetime.combine(target_date, time(23, 59, 59, 999999))

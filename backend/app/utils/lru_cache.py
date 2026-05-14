@@ -21,17 +21,24 @@ keeps the implementation concise while preserving the O(1) guarantees.
 """
 
 from collections import OrderedDict
-from typing import Any, Optional
+from typing import Any
 
 
 class LRUCache:
     """
     Fixed-capacity LRU cache with O(1) get, put, and invalidate.
 
-    Not thread-safe — suitable for single-process deployments (e.g. a
-    single Uvicorn worker).  Add a threading.Lock around _store mutations
-    if running with multiple threads or workers sharing state.
+    Not thread-safe — suitable for single-process, single-worker deployments.
+    Multiple Uvicorn/Gunicorn worker *processes* each hold their own cache
+    instance; an invalidation in one process is invisible to the others.
+    Use a shared store (Redis, DB timestamp) if running with workers > 1.
+    Add a threading.Lock around _store mutations for multi-threaded workers.
     """
+
+    # Unique sentinel returned by get() on a cache miss.
+    # Using a private object (not None) means None is a valid storable value
+    # and callers can distinguish a miss from a cached None unambiguously.
+    MISSING: object = object()
 
     def __init__(self, capacity: int) -> None:
         if capacity < 1:
@@ -39,10 +46,10 @@ class LRUCache:
         self._capacity = capacity
         self._store: OrderedDict = OrderedDict()
 
-    def get(self, key: Any) -> Optional[Any]:
-        """Return cached value or None on miss.  Marks key as most recently used."""
+    def get(self, key: Any) -> Any:
+        """Return cached value, or LRUCache.MISSING on a miss.  Marks key as MRU."""
         if key not in self._store:
-            return None
+            return LRUCache.MISSING
         self._store.move_to_end(key)   # O(1) — relink node to tail (MRU end)
         return self._store[key]
 
