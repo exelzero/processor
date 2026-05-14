@@ -219,10 +219,10 @@ def _find_available_slots(
     3. For each candidate slot [c, c+d):
        - bisect_right(busy_starts, c) gives position p such that all intervals
          at index < p have start ≤ c, and all at index ≥ p have start > c.
-       - Only two intervals can possibly overlap the window:
+       - After merging, intervals are disjoint, so only two can overlap [c, c+d):
            • index p-1: started at or before c — overlaps if its end > c
            • index p  : starts after c       — overlaps if its start < c+d
-         Every other interval is entirely outside [c, c+d).
+         Every other disjoint interval is entirely outside [c, c+d).
        - Each candidate check is O(log n) via bisect vs O(n) for any().
 
     Overall: O(n log n) sort + O(s log n) checks = O((n+s) log n)
@@ -259,7 +259,7 @@ def _find_available_slots(
         )
         if not conflict:
             slots.append(c.strftime('%H:%M'))
-        candidate += timedelta(minutes=SLOT_MINUTES)
+        candidate += timedelta(minutes=SLOT_MINUTES)  # grid stride, not service length
     return slots
 
 
