@@ -25,6 +25,9 @@ Upgrade path:
   The trade-off is added complexity: async sessions, `await` at every DB call,
   and careful avoidance of sync code on the event loop.
 """
+from dotenv import load_dotenv
+load_dotenv()  # loads backend/.env before any os.getenv() calls in imported modules
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import _rate_limit_exceeded_handler
