@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.database import engine, Base
 from app.models import patient, service, appointment, product, promotion, sale  # noqa: F401 — registers models
-from app.routes import auth, patients, services, appointments, metrics, analytics, products, promotions, sales
+from app.routes import auth, patients, services, appointments, metrics, analytics, products, promotions, sales, public
 
 Base.metadata.create_all(bind=engine)
 
@@ -26,6 +26,7 @@ app.include_router(analytics.router, prefix="/api/analytics", tags=["analytics"]
 app.include_router(products.router, prefix="/api/products", tags=["products"])
 app.include_router(promotions.router, prefix="/api/promotions", tags=["promotions"])
 app.include_router(sales.router, prefix="/api/sales", tags=["sales"])
+app.include_router(public.router, prefix="/api/public", tags=["public"])
 
 
 @app.get("/api/health")
