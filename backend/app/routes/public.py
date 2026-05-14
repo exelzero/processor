@@ -424,11 +424,10 @@ def book_appointment(request: Request, data: BookIn, db: Session = Depends(get_d
     )
     db.add(appointment)
     db.commit()
-    db.refresh(appointment)
-
-    # Write-through invalidation: evict this date's interval cache so the next
-    # availability request rebuilds from the DB with the new appointment included.
+    # Invalidate immediately after commit — before db.refresh() — so a transient
+    # error on refresh cannot leave a committed appointment invisible in the cache.
     _intervals_cache.invalidate(scheduled_at.date().isoformat())
+    db.refresh(appointment)
 
     return {
         'id':               appointment.id,
