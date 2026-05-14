@@ -4,8 +4,8 @@ from typing import Optional, List, Literal
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import func, cast, extract, String
-from pydantic import BaseModel, field_validator
-from datetime import date, datetime
+from pydantic import BaseModel, field_validator, field_serializer
+from datetime import date, datetime, timezone
 
 from app.database import get_db
 from app.auth import verify_token
@@ -37,6 +37,12 @@ class ExpenseOut(ExpenseIn):
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+    @field_serializer("created_at")
+    def serialize_created_at(self, v: datetime) -> str:
+        if v.tzinfo is None:
+            v = v.replace(tzinfo=timezone.utc)
+        return v.isoformat()
 
 
 @router.get("/categories")
