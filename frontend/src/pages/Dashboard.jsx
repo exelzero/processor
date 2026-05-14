@@ -1,6 +1,6 @@
 import { useId } from 'react'
 import { BarChart, Bar, AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, CartesianGrid } from 'recharts'
-import { Users, CalendarCheck, DollarSign, TrendingUp, ShoppingCart, Package, AlertTriangle } from 'lucide-react'
+import { Users, CalendarCheck, DollarSign, TrendingUp } from 'lucide-react'
 import { useMetrics } from '../hooks/useMetrics'
 import StatCard from '../components/StatCard'
 import { formatDate, formatTime, formatCurrency } from '../utils/format'
@@ -21,7 +21,7 @@ const MONTH_LABELS = {
 }
 
 export default function Dashboard() {
-  const { summary, revenueByService, revenueByMonth, upcoming, salesSummary, inventorySummary, loading, error } = useMetrics()
+  const { summary, revenueByService, revenueByMonth, upcoming, loading, error } = useMetrics()
   const gradientId = useId()
 
   const monthChartData = revenueByMonth.map(r => ({
@@ -61,7 +61,7 @@ export default function Dashboard() {
           icon={DollarSign}
           label="Revenue"
           value={loading ? '—' : formatCurrency(summary?.total_revenue)}
-          sub="from completed"
+          sub="services + product sales"
         />
         <StatCard icon={TrendingUp} label="Completion Rate" value={loading ? '—' : completionRate} />
       </div>
@@ -181,100 +181,6 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* ── Products & Inventory ─────────────────────────────────────────────── */}
-      <div className="mt-10 mb-6 flex items-center gap-3">
-        <h3 className="text-xs font-semibold text-stone-400 uppercase tracking-widest">Products &amp; Inventory</h3>
-        <div className="flex-1 h-px bg-stone-100" />
-      </div>
-
-      {/* Products KPI row */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <StatCard
-          icon={ShoppingCart}
-          label="Transactions"
-          value={loading ? '—' : (salesSummary?.total_transactions ?? 0).toLocaleString()}
-        />
-        <StatCard
-          icon={DollarSign}
-          label="Product Sales"
-          value={loading ? '—' : formatCurrency(salesSummary?.gross_revenue ?? 0)}
-          sub="excl. full refunds"
-        />
-        <StatCard
-          icon={Package}
-          label="Active Products"
-          value={loading ? '—' : (inventorySummary?.total_active ?? 0).toLocaleString()}
-          sub={inventorySummary ? `${inventorySummary.on_order_count} on order` : undefined}
-        />
-        <StatCard
-          icon={AlertTriangle}
-          label="Stock Alerts"
-          value={loading ? '—' : ((inventorySummary?.out_of_stock ?? 0) + (inventorySummary?.low_stock ?? 0)).toLocaleString()}
-          sub={inventorySummary ? `${inventorySummary.out_of_stock} out · ${inventorySummary.low_stock} low` : undefined}
-        />
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Top products by revenue */}
-        <div className="bg-white border border-stone-200 rounded-xl p-6">
-          <h3 className="text-sm font-medium text-stone-500 uppercase tracking-wider mb-4">Top Products</h3>
-          {!loading && salesSummary?.top_products?.length > 0 ? (
-            <div className="space-y-3">
-              {salesSummary.top_products.map((p, i) => {
-                const maxRevenue = salesSummary.top_products[0].revenue || 1
-                const pct = Math.round((p.revenue / maxRevenue) * 100)
-                return (
-                  <div key={p.name} className="flex items-center gap-3">
-                    <span className="text-xs text-stone-300 w-4 text-right shrink-0">{i + 1}</span>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex justify-between items-baseline mb-1">
-                        <span className="text-sm text-stone-700 truncate">{p.name}</span>
-                        <span className="text-xs text-stone-400 ml-3 shrink-0">{p.units} units · {formatCurrency(p.revenue)}</span>
-                      </div>
-                      <div className="h-1 bg-stone-100 rounded-full">
-                        <div className="h-1 bg-stone-700 rounded-full" style={{ width: `${pct}%` }} />
-                      </div>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          ) : (
-            <p className="text-stone-300 text-sm">{loading ? 'Loading…' : 'No product sales yet'}</p>
-          )}
-        </div>
-
-        {/* Stock alerts — products at or near zero */}
-        <div className="bg-white border border-stone-200 rounded-xl p-6">
-          <h3 className="text-sm font-medium text-stone-500 uppercase tracking-wider mb-4">Stock Alerts</h3>
-          {!loading && inventorySummary?.low_stock_items?.length > 0 ? (
-            <div className="space-y-1">
-              {inventorySummary.low_stock_items.map(item => (
-                <div key={item.name} className="flex items-center justify-between py-2 border-b border-stone-50 last:border-0">
-                  <div>
-                    <p className="text-sm text-stone-700">{item.name}</p>
-                    <p className="text-xs text-stone-400">{item.brand}</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                      item.stock_qty <= 0 ? 'bg-red-50 text-red-500' : 'bg-amber-50 text-amber-600'
-                    }`}>
-                      {item.stock_qty <= 0 ? 'Out of stock' : `${item.stock_qty} left`}
-                    </span>
-                    {item.stock_on_order > 0 && (
-                      <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-sky-50 text-sky-600">
-                        {item.stock_on_order} ordered
-                      </span>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-stone-300 text-sm">{loading ? 'Loading…' : 'All products well stocked'}</p>
-          )}
-        </div>
-      </div>
     </div>
   )
 }

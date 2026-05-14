@@ -17,8 +17,6 @@ export function useMetrics() {
   const [revenueByService, setRevenueByService] = useState([])
   const [revenueByMonth, setRevenueByMonth] = useState([])
   const [upcoming, setUpcoming] = useState([])
-  const [salesSummary, setSalesSummary] = useState(null)
-  const [inventorySummary, setInventorySummary] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
@@ -28,16 +26,12 @@ export function useMetrics() {
       api.get('/metrics/revenue-by-service'),
       api.get('/metrics/revenue-by-month'),
       api.get('/metrics/upcoming'),
-      api.get('/metrics/sales-summary'),
-      api.get('/metrics/inventory-summary'),
     ])
-      .then(([s, r, m, u, ss, inv]) => {
+      .then(([s, r, m, u]) => {
         setSummary(s.data)
         setRevenueByService(r.data.slice(0, 6))
         setRevenueByMonth(m.data)
         setUpcoming(u.data)
-        setSalesSummary(ss.data)
-        setInventorySummary(inv.data)
       })
       .catch(err => {
         setError(err.response?.data?.detail ?? 'Failed to load dashboard data.')
@@ -47,5 +41,5 @@ export function useMetrics() {
       })
   }, [])
 
-  return { summary, revenueByService, revenueByMonth, upcoming, salesSummary, inventorySummary, loading, error }
+  return { summary, revenueByService, revenueByMonth, upcoming, loading, error }
 }
