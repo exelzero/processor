@@ -50,6 +50,7 @@ export default function Services() {
     acc[cat] = services.filter(s => s.category === cat)
     return acc
   }, {})
+  const uncategorized = services.filter(s => !CATEGORIES.includes(s.category))
 
   return (
     <div className="p-8">
@@ -61,11 +62,11 @@ export default function Services() {
       </div>
 
       <div className="space-y-6">
-        {CATEGORIES.map(cat => grouped[cat]?.length > 0 && (
+        {[...CATEGORIES, uncategorized.length > 0 ? 'Other' : null].filter(Boolean).map(cat => (grouped[cat] ?? uncategorized)?.length > 0 && (
           <div key={cat}>
             <h3 className="text-xs font-medium text-stone-400 uppercase tracking-wider mb-3">{cat}</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-              {grouped[cat].map(s => (
+              {(grouped[cat] ?? uncategorized).map(s => (
                 <div key={s.id} className={`bg-white border rounded-xl p-5 ${s.active ? 'border-stone-200' : 'border-stone-100 opacity-50'}`}>
                   <div className="flex items-start justify-between mb-2">
                     <h4 className="font-medium text-stone-800 text-sm leading-tight">{s.name}</h4>
