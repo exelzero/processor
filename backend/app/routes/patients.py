@@ -29,6 +29,20 @@ class PatientOut(PatientIn):
     model_config = {"from_attributes": True}
 
 
+# Dependency Injection at the call site.
+#
+# Depends(get_db)      — FastAPI calls get_db(), yields a Session, passes it
+#                        as `db`, and closes it after the response is sent.
+# Depends(verify_token) — FastAPI resolves the full sub-graph (oauth2_scheme →
+#                        verify_token) before this handler runs.  A 401 from
+#                        verify_token short-circuits the request; the handler
+#                        body never executes.
+# _=Depends(...)       — the return value is discarded (we only care about the
+#                        side-effect: raising 401 if the token is invalid).
+#
+# Neither `db` nor the token verification are instantiated by this function —
+# it declares what it needs and FastAPI satisfies those declarations.  This is
+# the inversion-of-control principle: dependencies flow in, not out.
 @router.get("/", response_model=List[PatientOut])
 def list_patients(db: Session = Depends(get_db), _=Depends(verify_token)):
     return db.query(Patient).order_by(Patient.last_name).all()

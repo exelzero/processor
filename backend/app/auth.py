@@ -21,6 +21,25 @@ def create_access_token(data: dict) -> str:
 
 
 def verify_token(token: str = Depends(oauth2_scheme)):
+    """
+    Auth guard — itself a dependency with a nested dependency.
+
+    Depends(oauth2_scheme) is resolved first: OAuth2PasswordBearer extracts
+    the Bearer token string from the Authorization header and raises 401 if
+    it is absent.  FastAPI then passes that string as `token` here.
+
+    Dependencies form a DAG (directed acyclic graph).  FastAPI resolves the
+    full graph depth-first before calling the route handler:
+
+        route handler
+          └── Depends(verify_token)       ← resolved second
+                └── Depends(oauth2_scheme) ← resolved first
+
+    Each node in the graph is called at most once per request regardless of
+    how many handlers declare it — the result is cached for the request scope.
+    This means adding verify_token to a second parameter on the same route
+    costs nothing: the JWT is decoded only once.
+    """
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         username = payload.get("sub")
