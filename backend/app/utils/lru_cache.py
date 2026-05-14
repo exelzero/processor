@@ -69,4 +69,5 @@ class LRUCache:
         return len(self._store)
 
     def __contains__(self, key: Any) -> bool:
+        # Does not update LRU order — use get() if the access should count as a use.
         return key in self._store
