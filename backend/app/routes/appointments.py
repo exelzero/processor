@@ -7,7 +7,7 @@ from datetime import datetime
 from app.database import get_db
 from app.auth import verify_token
 from app.models.appointment import Appointment
-from app.routes.public import _intervals_cache
+from app.utils.intervals_cache import intervals_cache as _intervals_cache
 
 router = APIRouter()
 

@@ -13,11 +13,7 @@ from app.models.patient import Patient
 from app.models.service import Service
 from app.limiter import limiter
 from app.utils.lru_cache import LRUCache
-
-# Module-level cache: stores busy-interval lists keyed by date string.
-# Capacity 14 keeps ~2 weeks of dates warm; older dates are evicted automatically.
-# Invalidated on every successful booking so stale intervals are never served.
-_intervals_cache: LRUCache = LRUCache(capacity=14)
+from app.utils.intervals_cache import intervals_cache as _intervals_cache
 
 router = APIRouter()
 
