@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { CheckCircle, Clock, DollarSign, ChevronLeft, ChevronRight, Loader } from 'lucide-react'
 import api from '../api'
 import { formatCurrency } from '../utils/format'
@@ -90,10 +90,12 @@ function Input({ label, ...props }) {
 function ServiceStep({ onSelect }) {
   const [services, setServices] = useState([])
   const [loading, setLoading]   = useState(true)
+  const [error, setError]       = useState('')
 
   useEffect(() => {
     api.get('/public/services')
       .then(r => setServices(r.data))
+      .catch(() => setError('Could not load services. Please refresh and try again.'))
       .finally(() => setLoading(false))
   }, [])
 
@@ -108,6 +110,12 @@ function ServiceStep({ onSelect }) {
   if (loading) return (
     <div className="flex justify-center py-16">
       <Loader size={24} className="animate-spin text-stone-400" />
+    </div>
+  )
+
+  if (error) return (
+    <div className="py-12 text-center">
+      <p className="text-sm text-red-500">{error}</p>
     </div>
   )
 
@@ -162,14 +170,16 @@ function DateTimeStep({ service, selectedDate, selectedTime, onDateSelect, onTim
 
   const [slots,        setSlots]        = useState([])
   const [loadingSlots, setLoadingSlots] = useState(false)
+  const [slotsError,   setSlotsError]   = useState('')
 
   // Fetch slots when a date is picked
   useEffect(() => {
     if (!selectedDate) { setSlots([]); return }
     setLoadingSlots(true)
+    setSlotsError('')
     api.get('/public/availability', { params: { service_id: service.id, date: selectedDate } })
       .then(r => setSlots(r.data))
-      .catch(() => setSlots([]))
+      .catch(() => { setSlots([]); setSlotsError('Could not load availability. Please try again.') })
       .finally(() => setLoadingSlots(false))
   }, [selectedDate, service.id])
 
@@ -265,6 +275,8 @@ function DateTimeStep({ service, selectedDate, selectedTime, onDateSelect, onTim
             <div className="flex justify-center py-6">
               <Loader size={20} className="animate-spin text-stone-400" />
             </div>
+          ) : slotsError ? (
+            <p className="text-sm text-red-500 text-center py-6">{slotsError}</p>
           ) : slots.length === 0 ? (
             <p className="text-sm text-stone-400 text-center py-6">No availability on this date. Please try another day.</p>
           ) : (
@@ -449,6 +461,7 @@ export default function Book() {
   const [confirming,   setConfirming]   = useState(false)
   const [bookingError, setBookingError] = useState('')
   const [confirmation, setConfirmation] = useState(null)
+  const submitting = useRef(false)
 
   function updateForm(field, value) {
     setForm(f => ({ ...f, [field]: value }))
@@ -462,9 +475,12 @@ export default function Book() {
     setForm(EMPTY_FORM)
     setConfirmation(null)
     setBookingError('')
+    submitting.current = false
   }
 
   async function confirm() {
+    if (submitting.current) return
+    submitting.current = true
     setConfirming(true)
     setBookingError('')
     try {
@@ -479,6 +495,7 @@ export default function Book() {
       setBookingError(err.response?.data?.detail ?? 'Something went wrong. Please try again.')
     } finally {
       setConfirming(false)
+      submitting.current = false
     }
   }
 
@@ -499,7 +516,7 @@ export default function Book() {
             <StepIndicator current={step} />
 
             {step === 0 && (
-              <ServiceStep onSelect={s => { setService(s); setStep(1) }} />
+              <ServiceStep onSelect={s => { setService(s); setSelectedDate(''); setSelectedTime(''); setStep(1) }} />
             )}
             {step === 1 && (
               <DateTimeStep
