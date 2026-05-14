@@ -1,4 +1,5 @@
 from collections import defaultdict
+from datetime import date, datetime
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from sqlalchemy import cast, func, String
@@ -60,6 +61,8 @@ def revenue_by_service(db: Session = Depends(get_db), _=Depends(verify_token)):
 
 @router.get("/revenue-by-month")
 def revenue_by_month(db: Session = Depends(get_db), _=Depends(verify_token)):
+    current_year = str(date.today().year)
+
     appt_rows = (
         db.query(
             func.substr(cast(Appointment.scheduled_at, String), 1, 7).label('month'),
@@ -67,7 +70,10 @@ def revenue_by_month(db: Session = Depends(get_db), _=Depends(verify_token)):
             func.count(Appointment.id).label('count'),
         )
         .join(Service, Appointment.service_id == Service.id)
-        .filter(Appointment.status == 'completed')
+        .filter(
+            Appointment.status == 'completed',
+            func.substr(cast(Appointment.scheduled_at, String), 1, 4) == current_year,
+        )
         .group_by(func.substr(cast(Appointment.scheduled_at, String), 1, 7))
         .all()
     )
@@ -76,16 +82,19 @@ def revenue_by_month(db: Session = Depends(get_db), _=Depends(verify_token)):
             func.substr(cast(Sale.sale_date, String), 1, 7).label('month'),
             func.sum(Sale.total).label('revenue'),
         )
-        .filter(Sale.status.in_(['completed', 'partially_refunded']))
+        .filter(
+            Sale.status.in_(['completed', 'partially_refunded']),
+            func.substr(cast(Sale.sale_date, String), 1, 4) == current_year,
+        )
         .group_by(func.substr(cast(Sale.sale_date, String), 1, 7))
         .all()
     )
-
     expense_rows = (
         db.query(
             func.substr(cast(Expense.expense_date, String), 1, 7).label('month'),
             func.sum(Expense.amount).label('expenses'),
         )
+        .filter(func.substr(cast(Expense.expense_date, String), 1, 4) == current_year)
         .group_by(func.substr(cast(Expense.expense_date, String), 1, 7))
         .all()
     )
@@ -107,7 +116,6 @@ def revenue_by_month(db: Session = Depends(get_db), _=Depends(verify_token)):
 
 @router.get("/upcoming")
 def upcoming(db: Session = Depends(get_db), _=Depends(verify_token)):
-    from datetime import datetime
     appts = (
         db.query(Appointment)
         .filter(Appointment.scheduled_at >= datetime.utcnow(), Appointment.status == "scheduled")
@@ -157,6 +165,27 @@ def sales_summary(db: Session = Depends(get_db), _=Depends(verify_token)):
             for r in top_products
         ],
     }
+
+
+@router.get("/on-order")
+def on_order(db: Session = Depends(get_db), _=Depends(verify_token)):
+    items = (
+        db.query(Product)
+        .filter(Product.active == True, Product.stock_on_order > 0)
+        .order_by(Product.stock_on_order.desc())
+        .limit(50)
+        .all()
+    )
+    return [
+        {
+            "id": p.id,
+            "name": p.name,
+            "brand": p.brand,
+            "stock_qty": p.stock_qty,
+            "stock_on_order": p.stock_on_order,
+        }
+        for p in items
+    ]
 
 
 @router.get("/inventory-summary")

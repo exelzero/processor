@@ -1,4 +1,4 @@
-import { BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, Cell, CartesianGrid } from 'recharts'
+import { LineChart, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid } from 'recharts'
 import { Users, CalendarCheck, DollarSign, Receipt } from 'lucide-react'
 import { useMetrics } from '../hooks/useMetrics'
 import StatCard from '../components/StatCard'
@@ -11,7 +11,7 @@ const MONTH_LABELS = {
 }
 
 export default function Dashboard() {
-  const { summary, revenueByService, revenueByMonth, upcoming, loading, error } = useMetrics()
+  const { summary, onOrder, revenueByMonth, upcoming, loading, error } = useMetrics()
 
   const monthChartData = revenueByMonth.map(r => ({
     ...r,
@@ -63,7 +63,7 @@ export default function Dashboard() {
       {/* Revenue vs Expenses by month — two-line comparison chart */}
       <div className="bg-white border border-stone-200 rounded-xl p-6 mb-6">
         <h3 className="text-sm font-medium text-stone-500 uppercase tracking-wider mb-4">
-          Revenue vs Expenses
+          Revenue vs Expenses — Year to Date
         </h3>
         {monthChartData.length > 0 ? (
           <ResponsiveContainer width="100%" height={240}>
@@ -115,43 +115,28 @@ export default function Dashboard() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Revenue by service — bar chart capped at 6 services for readability */}
+        {/* Products on order — ordered but not yet on shelf */}
         <div className="bg-white border border-stone-200 rounded-xl p-6">
           <h3 className="text-sm font-medium text-stone-500 uppercase tracking-wider mb-4">
-            Revenue by Service
+            Products on Order
           </h3>
-          {revenueByService.length > 0 ? (
-            <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={revenueByService} margin={{ top: 0, right: 0, left: -10, bottom: 0 }}>
-                <XAxis
-                  dataKey="service"
-                  tick={{ fontSize: 11, fill: '#a8a29e' }}
-                  tickLine={false}
-                  axisLine={false}
-                  interval={0}
-                  angle={-20}
-                  textAnchor="end"
-                  height={50}
-                />
-                <YAxis
-                  tick={{ fontSize: 11, fill: '#a8a29e' }}
-                  tickLine={false}
-                  axisLine={false}
-                  tickFormatter={v => formatCurrency(v)}
-                />
-                <Tooltip
-                  formatter={v => [formatCurrency(v), 'Revenue']}
-                  contentStyle={{ borderRadius: 8, border: '1px solid #e7e5e4', fontSize: 12 }}
-                />
-                <Bar dataKey="revenue" radius={[4, 4, 0, 0]}>
-                  {revenueByService.map((_, i) => (
-                    <Cell key={i} fill={i === 0 ? '#292524' : '#d6d3d1'} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+          {onOrder.length === 0 ? (
+            <p className="text-stone-300 text-sm">{loading ? 'Loading…' : 'No products currently on order'}</p>
           ) : (
-            <p className="text-stone-300 text-sm">{loading ? 'Loading…' : 'No completed appointments yet'}</p>
+            <div className="space-y-3">
+              {onOrder.map(p => (
+                <div key={p.id} className="flex items-center justify-between py-2 border-b border-stone-50 last:border-0">
+                  <div>
+                    <p className="text-sm text-stone-700 font-medium">{p.name}</p>
+                    <p className="text-xs text-stone-400">{p.brand}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs font-medium text-stone-700">{p.stock_on_order} on order</p>
+                    <p className="text-xs text-stone-400">{p.stock_qty} on shelf</p>
+                  </div>
+                </div>
+              ))}
+            </div>
           )}
         </div>
 

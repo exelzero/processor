@@ -1,4 +1,4 @@
-import { useId } from 'react'
+import { useId, useState } from 'react'
 import {
   AreaChart, Area,
   BarChart, Bar,
@@ -24,7 +24,8 @@ const CATEGORY_COLORS = {
   Consultation: '#d6d3d1',
 }
 
-const SKIN_COLORS = ['#292524', '#57534e', '#78716c', '#a8a29e', '#d6d3d1']
+const SKIN_COLORS     = ['#292524', '#57534e', '#78716c', '#a8a29e', '#d6d3d1']
+const EXPENSE_COLORS  = ['#292524', '#57534e', '#78716c', '#a8a29e', '#d6d3d1', '#44403c', '#1c1917', '#e7e5e4', '#c7c4c0']
 
 const MONTH_SHORT = {
   '01': 'Jan', '02': 'Feb', '03': 'Mar', '04': 'Apr',
@@ -37,15 +38,16 @@ function shortMonth(yearMonth) {
 }
 
 // ── Shared chart config ───────────────────────────────────────────────────────
-const AXIS_STYLE = { fontSize: 11, fill: '#a8a29e' }
+const AXIS_STYLE    = { fontSize: 11, fill: '#a8a29e' }
 const TOOLTIP_STYLE = { borderRadius: 8, border: '1px solid #e7e5e4', fontSize: 12 }
 
 // ── Small shared components ───────────────────────────────────────────────────
 function SectionTitle({ children }) {
   return (
-    <h2 className="text-xs font-semibold text-stone-400 uppercase tracking-widest mb-4 mt-8 first:mt-0">
-      {children}
-    </h2>
+    <div className="flex items-center gap-3 mb-4 mt-10 first:mt-0">
+      <h2 className="text-xs font-semibold text-stone-400 uppercase tracking-widest whitespace-nowrap">{children}</h2>
+      <div className="flex-1 h-px bg-stone-100" />
+    </div>
   )
 }
 
@@ -63,11 +65,15 @@ function CardTitle({ children }) {
   )
 }
 
-function KpiCard({ label, value, sub }) {
+function KpiCard({ label, value, sub, highlight }) {
+  const valueColor =
+    highlight === 'green' ? 'text-emerald-600' :
+    highlight === 'red'   ? 'text-red-500' :
+                            'text-stone-800'
   return (
     <Card>
       <p className="text-xs font-medium text-stone-400 uppercase tracking-wider mb-1">{label}</p>
-      <p className="text-2xl font-light text-stone-800">{value}</p>
+      <p className={`text-2xl font-light ${valueColor}`}>{value}</p>
       {sub && <p className="text-xs text-stone-400 mt-0.5">{sub}</p>}
     </Card>
   )
@@ -79,27 +85,40 @@ function Empty({ loading }) {
   )
 }
 
-// ── Custom Tooltip helpers ────────────────────────────────────────────────────
-function currencyTooltip(v) {
-  return [formatCurrency(v), 'Revenue']
-}
+const PERIODS = [
+  { value: 'ytd', label: 'Year to Date' },
+  { value: '30d', label: '30 days' },
+  { value: '60d', label: '60 days' },
+  { value: '90d', label: '90 days' },
+  { value: '120d', label: '120 days' },
+]
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 export default function Analytics() {
-  const { revenueTrend, categoryMix, statusTrend, schedulePatterns, servicePerf, clientInsights, loading, error } = useAnalytics()
+  const [period, setPeriod] = useState('ytd')
+  const {
+    revenueTrend, categoryMix, statusTrend, schedulePatterns, servicePerf, clientInsights,
+    productSales, expensesData, inventoryData,
+    loading, error,
+  } = useAnalytics(period)
   const gradientId = useId()
 
   if (error) {
     return (
       <div className="p-8">
-        <h1 className="text-xl font-light text-stone-800 mb-6 tracking-wide">Analytics</h1>
+        <h1 className="text-xl font-light text-stone-800 mb-4 tracking-wide">Analytics</h1>
         <p className="text-red-500 text-sm">{error}</p>
       </div>
     )
   }
 
   // Derived values
-  const totalRevenue = revenueTrend.by_month.reduce((s, r) => s + r.revenue, 0)
+  const serviceRevenue  = revenueTrend.by_month.reduce((s, r) => s + r.revenue, 0)
+  const totalRevenue    = serviceRevenue + productSales.total_revenue
+  const net             = totalRevenue - expensesData.total
+  const totalAppts      = statusTrend.by_month.reduce((s, r) => s + r.completed + r.cancelled + r['no-show'], 0)
+  const totalVolume     = totalAppts + productSales.total_transactions
+
   const { cancellation_rate, no_show_rate } = statusTrend
   const completionRate = (() => {
     const past = statusTrend.by_month.reduce((s, r) => s + r.completed + r.cancelled + r['no-show'], 0)
@@ -107,60 +126,71 @@ export default function Analytics() {
     return past > 0 ? Math.round((done / past) * 100) : 0
   })()
 
-  const monthChartData = revenueTrend.by_month.map(r => ({
-    ...r,
-    label: shortMonth(r.month),
-  }))
-
-  const statusChartData = statusTrend.by_month.map(r => ({
-    ...r,
-    label: shortMonth(r.month),
-  }))
-
+  const monthChartData  = revenueTrend.by_month.map(r => ({ ...r, label: shortMonth(r.month) }))
+  const statusChartData = statusTrend.by_month.map(r => ({ ...r, label: shortMonth(r.month) }))
+  const topServicesByCount = [...servicePerf].sort((a, b) => b.count - a.count).slice(0, 8)
   const retentionData = clientInsights.retention.one_time != null
     ? [
-        { name: 'Returning', value: clientInsights.retention.returning },
+        { name: 'Returning',  value: clientInsights.retention.returning },
         { name: 'First-time', value: clientInsights.retention.one_time },
       ]
     : []
 
-  const topServicesByCount = [...servicePerf].sort((a, b) => b.count - a.count).slice(0, 8)
+  const productMonthData    = productSales.by_month.map(r => ({ ...r, label: shortMonth(r.month) }))
+  const expenseMonthData    = expensesData.by_month.map(r => ({ ...r, label: shortMonth(r.month) }))
 
   return (
     <div className="p-8">
-      <h1 className="text-xl font-light text-stone-800 mb-6 tracking-wide">Analytics</h1>
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-xl font-light text-stone-800 tracking-wide">Analytics</h1>
+        <div className="flex items-center gap-1.5">
+          {PERIODS.map(p => (
+            <button
+              key={p.value}
+              onClick={() => setPeriod(p.value)}
+              className={`text-xs px-3 py-1.5 rounded-lg transition-colors ${
+                period === p.value
+                  ? 'bg-stone-800 text-white'
+                  : 'text-stone-400 border border-stone-200 hover:text-stone-700 hover:border-stone-300'
+              }`}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+      </div>
 
-      {/* ── KPI Strip ───────────────────────────────────────────────────────── */}
+      {/* ── Combined KPI Strip ──────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <KpiCard
           label="Total Revenue"
           value={loading ? '—' : formatCurrency(totalRevenue)}
-          sub="completed appointments"
+          sub="services + product sales"
         />
         <KpiCard
-          label="Avg Monthly Revenue"
-          value={loading ? '—' : formatCurrency(revenueTrend.avg_monthly_revenue)}
-          sub={`over ${revenueTrend.by_month.length} months`}
+          label="Total Expenses"
+          value={loading ? '—' : formatCurrency(expensesData.total)}
+          sub="all categories"
         />
         <KpiCard
-          label="Completion Rate"
-          value={loading ? '—' : `${completionRate}%`}
-          sub={`${cancellation_rate}% cancelled · ${no_show_rate}% no-show`}
+          label="Net"
+          value={loading ? '—' : (net >= 0 ? `+${formatCurrency(net)}` : `−${formatCurrency(Math.abs(net))}`)}
+          sub={net >= 0 ? 'profitable' : 'deficit'}
+          highlight={loading ? undefined : net >= 0 ? 'green' : 'red'}
         />
         <KpiCard
-          label="Client Retention"
-          value={loading ? '—' : `${clientInsights.retention.returning ?? 0}`}
-          sub="returning clients"
+          label="Total Volume"
+          value={loading ? '—' : totalVolume.toLocaleString()}
+          sub={`${totalAppts} appts · ${productSales.total_transactions} sales`}
         />
       </div>
 
-      {/* ── Revenue ─────────────────────────────────────────────────────────── */}
-      <SectionTitle>Revenue</SectionTitle>
+      {/* ── Service Revenue ─────────────────────────────────────────────────── */}
+      <SectionTitle>Service Revenue (Appointments)</SectionTitle>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-        {/* Revenue trend — 2/3 width */}
         <Card className="lg:col-span-2">
-          <CardTitle>Monthly Revenue & Volume</CardTitle>
+          <CardTitle>Service Revenue by Month — Appointments Only</CardTitle>
           {monthChartData.length > 0 ? (
             <ResponsiveContainer width="100%" height={220}>
               <ComposedChart data={monthChartData} margin={{ top: 4, right: 8, left: -10, bottom: 0 }}>
@@ -176,7 +206,7 @@ export default function Analytics() {
                 <YAxis yAxisId="cnt" orientation="right" tick={AXIS_STYLE} tickLine={false} axisLine={false} />
                 <Tooltip
                   contentStyle={TOOLTIP_STYLE}
-                  formatter={(v, name) => name === 'revenue' ? [formatCurrency(v), 'Revenue'] : [v, 'Appointments']}
+                  formatter={(v, name) => name === 'revenue' ? [formatCurrency(v), 'Service Revenue'] : [v, 'Appointments']}
                 />
                 <Area yAxisId="rev" type="monotone" dataKey="revenue" stroke={STONE} strokeWidth={2} fill={`url(#${gradientId})`} dot={{ r: 3, fill: STONE, strokeWidth: 0 }} activeDot={{ r: 5, fill: STONE, strokeWidth: 0 }} />
                 <Line yAxisId="cnt" type="monotone" dataKey="count" stroke={AMBER} strokeWidth={2} dot={{ r: 3, fill: AMBER, strokeWidth: 0 }} activeDot={{ r: 5, fill: AMBER, strokeWidth: 0 }} />
@@ -185,9 +215,8 @@ export default function Analytics() {
           ) : <Empty loading={loading} />}
         </Card>
 
-        {/* Category mix — 1/3 width */}
         <Card>
-          <CardTitle>Revenue by Category</CardTitle>
+          <CardTitle>Service Revenue by Category</CardTitle>
           {categoryMix.length > 0 ? (
             <>
               <ResponsiveContainer width="100%" height={160}>
@@ -197,7 +226,7 @@ export default function Analytics() {
                       <Cell key={entry.category} fill={CATEGORY_COLORS[entry.category] ?? STONE_3} />
                     ))}
                   </Pie>
-                  <Tooltip contentStyle={TOOLTIP_STYLE} formatter={currencyTooltip} />
+                  <Tooltip contentStyle={TOOLTIP_STYLE} formatter={v => [formatCurrency(v), 'Revenue']} />
                 </PieChart>
               </ResponsiveContainer>
               <div className="space-y-1.5 mt-2">
@@ -219,7 +248,6 @@ export default function Analytics() {
       {/* ── Appointments ────────────────────────────────────────────────────── */}
       <SectionTitle>Appointments</SectionTitle>
 
-      {/* Status breakdown by month — full width stacked bar */}
       <Card className="mb-6">
         <CardTitle>Appointment Status by Month</CardTitle>
         {statusChartData.length > 0 ? (
@@ -230,7 +258,7 @@ export default function Analytics() {
               <YAxis tick={AXIS_STYLE} tickLine={false} axisLine={false} />
               <Tooltip contentStyle={TOOLTIP_STYLE} />
               <Legend wrapperStyle={{ fontSize: 11, paddingTop: 12 }} />
-              <Bar dataKey="completed" stackId="a" fill={EMERALD} radius={[0, 0, 0, 0]} name="Completed" />
+              <Bar dataKey="completed" stackId="a" fill={EMERALD} name="Completed" />
               <Bar dataKey="cancelled" stackId="a" fill={STONE_3} name="Cancelled" />
               <Bar dataKey="no-show"   stackId="a" fill={RED}     name="No-show" />
               <Bar dataKey="scheduled" stackId="a" fill={BLUE}    radius={[4, 4, 0, 0]} name="Scheduled" />
@@ -240,7 +268,6 @@ export default function Analytics() {
       </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        {/* Day of week */}
         <Card>
           <CardTitle>Busiest Day of Week</CardTitle>
           {schedulePatterns.by_weekday.length > 0 ? (
@@ -250,7 +277,7 @@ export default function Analytics() {
                 <XAxis dataKey="day" tick={AXIS_STYLE} tickLine={false} axisLine={false} />
                 <YAxis tick={AXIS_STYLE} tickLine={false} axisLine={false} />
                 <Tooltip contentStyle={TOOLTIP_STYLE} formatter={v => [v, 'Appointments']} />
-                <Bar dataKey="count" radius={[4, 4, 0, 0]} name="Appointments">
+                <Bar dataKey="count" radius={[4, 4, 0, 0]}>
                   {schedulePatterns.by_weekday.map((entry, i, arr) => {
                     const max = Math.max(...arr.map(d => d.count))
                     return <Cell key={entry.day} fill={entry.count === max ? STONE : STONE_3} />
@@ -261,7 +288,6 @@ export default function Analytics() {
           ) : <Empty loading={loading} />}
         </Card>
 
-        {/* Hour of day */}
         <Card>
           <CardTitle>Busiest Hour of Day</CardTitle>
           {schedulePatterns.by_hour.length > 0 ? (
@@ -271,7 +297,7 @@ export default function Analytics() {
                 <XAxis dataKey="hour" tick={AXIS_STYLE} tickLine={false} axisLine={false} />
                 <YAxis tick={AXIS_STYLE} tickLine={false} axisLine={false} />
                 <Tooltip contentStyle={TOOLTIP_STYLE} formatter={v => [v, 'Appointments']} />
-                <Bar dataKey="count" radius={[4, 4, 0, 0]} name="Appointments">
+                <Bar dataKey="count" radius={[4, 4, 0, 0]}>
                   {schedulePatterns.by_hour.map((entry, i, arr) => {
                     const max = Math.max(...arr.map(d => d.count))
                     return <Cell key={entry.hour} fill={entry.count === max ? STONE : STONE_3} />
@@ -287,7 +313,6 @@ export default function Analytics() {
       <SectionTitle>Services</SectionTitle>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        {/* Top services by revenue */}
         <Card>
           <CardTitle>Top Services by Revenue</CardTitle>
           {servicePerf.length > 0 ? (
@@ -295,18 +320,15 @@ export default function Analytics() {
               <BarChart data={servicePerf} layout="vertical" margin={{ top: 0, right: 8, left: 8, bottom: 0 }}>
                 <XAxis type="number" tick={AXIS_STYLE} tickLine={false} axisLine={false} tickFormatter={v => `$${(v / 1000).toFixed(0)}k`} />
                 <YAxis type="category" dataKey="service" tick={{ fontSize: 11, fill: '#78716c' }} tickLine={false} axisLine={false} width={130} />
-                <Tooltip contentStyle={TOOLTIP_STYLE} formatter={currencyTooltip} />
+                <Tooltip contentStyle={TOOLTIP_STYLE} formatter={v => [formatCurrency(v), 'Revenue']} />
                 <Bar dataKey="revenue" radius={[0, 4, 4, 0]}>
-                  {servicePerf.map((_, i) => (
-                    <Cell key={i} fill={i === 0 ? STONE : STONE_3} />
-                  ))}
+                  {servicePerf.map((_, i) => <Cell key={i} fill={i === 0 ? STONE : STONE_3} />)}
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
           ) : <Empty loading={loading} />}
         </Card>
 
-        {/* Top services by booking count */}
         <Card>
           <CardTitle>Top Services by Bookings</CardTitle>
           {topServicesByCount.length > 0 ? (
@@ -316,9 +338,7 @@ export default function Analytics() {
                 <YAxis type="category" dataKey="service" tick={{ fontSize: 11, fill: '#78716c' }} tickLine={false} axisLine={false} width={130} />
                 <Tooltip contentStyle={TOOLTIP_STYLE} formatter={v => [v, 'Bookings']} />
                 <Bar dataKey="count" radius={[0, 4, 4, 0]}>
-                  {topServicesByCount.map((_, i) => (
-                    <Cell key={i} fill={i === 0 ? STONE : STONE_3} />
-                  ))}
+                  {topServicesByCount.map((_, i) => <Cell key={i} fill={i === 0 ? STONE : STONE_3} />)}
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
@@ -330,7 +350,6 @@ export default function Analytics() {
       <SectionTitle>Clients</SectionTitle>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-        {/* New client acquisition — 2/3 width */}
         <Card className="lg:col-span-2">
           <CardTitle>New Client Acquisition by Month</CardTitle>
           {clientInsights.growth.length > 0 ? (
@@ -348,7 +367,6 @@ export default function Analytics() {
           ) : <Empty loading={loading} />}
         </Card>
 
-        {/* Retention donut — 1/3 width */}
         <Card>
           <CardTitle>Client Retention</CardTitle>
           {retentionData.length > 0 ? (
@@ -379,7 +397,6 @@ export default function Analytics() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-        {/* Skin type distribution */}
         <Card>
           <CardTitle>Skin Type Distribution</CardTitle>
           {clientInsights.skin_types.length > 0 ? (
@@ -409,7 +426,6 @@ export default function Analytics() {
           ) : <Empty loading={loading} />}
         </Card>
 
-        {/* Top clients table — 2/3 width */}
         <Card className="lg:col-span-2">
           <CardTitle>Top 10 Clients by Revenue</CardTitle>
           {clientInsights.top_clients.length > 0 ? (
@@ -435,6 +451,227 @@ export default function Analytics() {
               </tbody>
             </table>
           ) : <Empty loading={loading} />}
+        </Card>
+      </div>
+
+      {/* ── Product Sales ────────────────────────────────────────────────────── */}
+      <SectionTitle>Product Sales</SectionTitle>
+
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+        <KpiCard
+          label="Transactions"
+          value={loading ? '—' : productSales.total_transactions.toLocaleString()}
+        />
+        <KpiCard
+          label="Product Revenue"
+          value={loading ? '—' : formatCurrency(productSales.total_revenue)}
+          sub="excl. fully refunded"
+        />
+        <KpiCard
+          label="Avg Sale Value"
+          value={loading ? '—' : formatCurrency(productSales.avg_sale_value)}
+          sub="per transaction"
+        />
+      </div>
+
+      <Card className="mb-6">
+        <CardTitle>Product Sales by Month</CardTitle>
+        {productMonthData.length > 0 ? (
+          <ResponsiveContainer width="100%" height={200}>
+            <ComposedChart data={productMonthData} margin={{ top: 4, right: 8, left: -10, bottom: 0 }}>
+              <CartesianGrid vertical={false} stroke="#f5f5f4" />
+              <XAxis dataKey="label" tick={AXIS_STYLE} tickLine={false} axisLine={false} />
+              <YAxis yAxisId="rev" tick={AXIS_STYLE} tickLine={false} axisLine={false} tickFormatter={v => formatCurrency(v)} />
+              <YAxis yAxisId="txn" orientation="right" tick={AXIS_STYLE} tickLine={false} axisLine={false} />
+              <Tooltip
+                contentStyle={TOOLTIP_STYLE}
+                formatter={(v, name) => name === 'revenue' ? [formatCurrency(v), 'Revenue'] : [v, 'Transactions']}
+              />
+              <Bar yAxisId="rev" dataKey="revenue" fill={STONE_3} radius={[4, 4, 0, 0]} name="revenue" />
+              <Line yAxisId="txn" type="monotone" dataKey="transactions" stroke={STONE} strokeWidth={2} dot={{ r: 3, fill: STONE, strokeWidth: 0 }} activeDot={{ r: 5, strokeWidth: 0 }} name="transactions" />
+            </ComposedChart>
+          </ResponsiveContainer>
+        ) : <Empty loading={loading} />}
+      </Card>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        <Card>
+          <CardTitle>Top Products by Revenue</CardTitle>
+          {productSales.top_by_revenue.length > 0 ? (
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart data={productSales.top_by_revenue} layout="vertical" margin={{ top: 0, right: 8, left: 8, bottom: 0 }}>
+                <XAxis type="number" tick={AXIS_STYLE} tickLine={false} axisLine={false} tickFormatter={v => formatCurrency(v)} />
+                <YAxis type="category" dataKey="name" tick={{ fontSize: 11, fill: '#78716c' }} tickLine={false} axisLine={false} width={140} />
+                <Tooltip contentStyle={TOOLTIP_STYLE} formatter={v => [formatCurrency(v), 'Revenue']} />
+                <Bar dataKey="revenue" radius={[0, 4, 4, 0]}>
+                  {productSales.top_by_revenue.map((_, i) => <Cell key={i} fill={i === 0 ? STONE : STONE_3} />)}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          ) : <Empty loading={loading} />}
+        </Card>
+
+        <Card>
+          <CardTitle>Top Products by Units Sold</CardTitle>
+          {productSales.top_by_units.length > 0 ? (
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart data={productSales.top_by_units} layout="vertical" margin={{ top: 0, right: 8, left: 8, bottom: 0 }}>
+                <XAxis type="number" tick={AXIS_STYLE} tickLine={false} axisLine={false} />
+                <YAxis type="category" dataKey="name" tick={{ fontSize: 11, fill: '#78716c' }} tickLine={false} axisLine={false} width={140} />
+                <Tooltip contentStyle={TOOLTIP_STYLE} formatter={v => [v, 'Units sold']} />
+                <Bar dataKey="units" radius={[0, 4, 4, 0]}>
+                  {productSales.top_by_units.map((_, i) => <Cell key={i} fill={i === 0 ? STONE : STONE_3} />)}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          ) : <Empty loading={loading} />}
+        </Card>
+      </div>
+
+      {/* ── Expenses ─────────────────────────────────────────────────────────── */}
+      <SectionTitle>Expenses</SectionTitle>
+
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+        <KpiCard
+          label="Total Expenses"
+          value={loading ? '—' : formatCurrency(expensesData.total)}
+        />
+        <KpiCard
+          label="Avg Monthly"
+          value={loading ? '—' : formatCurrency(expensesData.avg_monthly)}
+          sub={`over ${expensesData.by_month.length} months`}
+        />
+        <KpiCard
+          label="Largest Category"
+          value={loading ? '—' : (expensesData.top_category ?? '—')}
+          sub={
+            expensesData.by_category.length > 0
+              ? formatCurrency(expensesData.by_category[0]?.amount)
+              : undefined
+          }
+        />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+        <Card className="lg:col-span-2">
+          <CardTitle>Monthly Expenses</CardTitle>
+          {expenseMonthData.length > 0 ? (
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart data={expenseMonthData} margin={{ top: 4, right: 8, left: -10, bottom: 0 }}>
+                <CartesianGrid vertical={false} stroke="#f5f5f4" />
+                <XAxis dataKey="label" tick={AXIS_STYLE} tickLine={false} axisLine={false} />
+                <YAxis tick={AXIS_STYLE} tickLine={false} axisLine={false} tickFormatter={v => formatCurrency(v)} />
+                <Tooltip contentStyle={TOOLTIP_STYLE} formatter={v => [formatCurrency(v), 'Expenses']} />
+                <Bar dataKey="amount" radius={[4, 4, 0, 0]} fill={RED} />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : <Empty loading={loading} />}
+        </Card>
+
+        <Card>
+          <CardTitle>Expenses by Category</CardTitle>
+          {expensesData.by_category.length > 0 ? (
+            <>
+              <ResponsiveContainer width="100%" height={160}>
+                <PieChart>
+                  <Pie data={expensesData.by_category} dataKey="amount" nameKey="category" cx="50%" cy="50%" innerRadius={45} outerRadius={72} strokeWidth={0}>
+                    {expensesData.by_category.map((_, i) => (
+                      <Cell key={i} fill={EXPENSE_COLORS[i % EXPENSE_COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip contentStyle={TOOLTIP_STYLE} formatter={v => [formatCurrency(v), 'Amount']} />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="space-y-1.5 mt-2">
+                {expensesData.by_category.map((entry, i) => (
+                  <div key={entry.category} className="flex items-center justify-between text-xs">
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-2.5 h-2.5 rounded-sm inline-block" style={{ background: EXPENSE_COLORS[i % EXPENSE_COLORS.length] }} />
+                      <span className="text-stone-600 truncate max-w-[110px]">{entry.category}</span>
+                    </span>
+                    <span className="text-stone-400">{formatCurrency(entry.amount)}</span>
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : <Empty loading={loading} />}
+        </Card>
+      </div>
+
+      {/* ── Inventory ────────────────────────────────────────────────────────── */}
+      <SectionTitle>Inventory</SectionTitle>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <KpiCard label="Active Products" value={loading ? '—' : inventoryData.total_active.toLocaleString()} />
+        <KpiCard
+          label="Out of Stock"
+          value={loading ? '—' : inventoryData.out_of_stock.toLocaleString()}
+          sub={inventoryData.out_of_stock > 0 ? 'needs restocking' : 'all clear'}
+        />
+        <KpiCard
+          label="Low Stock"
+          value={loading ? '—' : inventoryData.low_stock.toLocaleString()}
+          sub="3 units or fewer"
+        />
+        <KpiCard
+          label="On Order"
+          value={loading ? '—' : inventoryData.on_order.toLocaleString()}
+          sub="awaiting delivery"
+        />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+        <Card className="lg:col-span-2">
+          <CardTitle>Stock Levels — At-Risk Products</CardTitle>
+          {inventoryData.stock_levels.length > 0 ? (
+            <ResponsiveContainer width="100%" height={260}>
+              <BarChart data={inventoryData.stock_levels} layout="vertical" margin={{ top: 0, right: 8, left: 8, bottom: 0 }}>
+                <XAxis type="number" tick={AXIS_STYLE} tickLine={false} axisLine={false} />
+                <YAxis type="category" dataKey="name" tick={{ fontSize: 11, fill: '#78716c' }} tickLine={false} axisLine={false} width={140} />
+                <Tooltip
+                  contentStyle={TOOLTIP_STYLE}
+                  formatter={(v, name) => [v, name === 'stock_qty' ? 'In stock' : 'On order']}
+                />
+                <Bar dataKey="stock_qty" name="stock_qty" radius={[0, 4, 4, 0]} stackId="a">
+                  {inventoryData.stock_levels.map(item => (
+                    <Cell
+                      key={item.name}
+                      fill={item.stock_qty <= 0 ? RED : item.stock_qty <= 3 ? AMBER : EMERALD}
+                    />
+                  ))}
+                </Bar>
+                <Bar dataKey="stock_on_order" name="stock_on_order" radius={[0, 4, 4, 0]} fill={BLUE} stackId="a" />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : <Empty loading={loading} />}
+        </Card>
+
+        <Card>
+          <CardTitle>Stock Alerts</CardTitle>
+          {!loading && inventoryData.low_stock_items.length > 0 ? (
+            <div className="space-y-1">
+              {inventoryData.low_stock_items.slice(0, 10).map(item => (
+                <div key={item.name} className="flex items-center justify-between py-2 border-b border-stone-50 last:border-0">
+                  <div className="min-w-0 mr-2">
+                    <p className="text-sm text-stone-700 truncate">{item.name}</p>
+                    <p className="text-xs text-stone-400">{item.brand}</p>
+                  </div>
+                  <div className="flex flex-col items-end gap-1 shrink-0">
+                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${item.stock_qty <= 0 ? 'bg-red-50 text-red-500' : 'bg-amber-50 text-amber-600'}`}>
+                      {item.stock_qty <= 0 ? 'Out' : `${item.stock_qty} left`}
+                    </span>
+                    {item.stock_on_order > 0 && (
+                      <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-sky-50 text-sky-600">
+                        {item.stock_on_order} ordered
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-stone-300 text-sm">{loading ? 'Loading…' : 'All products well stocked'}</p>
+          )}
         </Card>
       </div>
     </div>
