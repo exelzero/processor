@@ -168,6 +168,26 @@ def sales_summary(db: Session = Depends(get_db), _=Depends(verify_token)):
     }
 
 
+@router.get("/on-order")
+def on_order(db: Session = Depends(get_db), _=Depends(verify_token)):
+    items = (
+        db.query(Product)
+        .filter(Product.active == True, Product.stock_on_order > 0)
+        .order_by(Product.stock_on_order.desc())
+        .all()
+    )
+    return [
+        {
+            "id": p.id,
+            "name": p.name,
+            "brand": p.brand,
+            "stock_qty": p.stock_qty,
+            "stock_on_order": p.stock_on_order,
+        }
+        for p in items
+    ]
+
+
 @router.get("/inventory-summary")
 def inventory_summary(db: Session = Depends(get_db), _=Depends(verify_token)):
     total_active   = db.query(func.count(Product.id)).filter(Product.active == True).scalar()
