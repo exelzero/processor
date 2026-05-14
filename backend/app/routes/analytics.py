@@ -69,7 +69,11 @@ def status_trend(db: Session = Depends(get_db), _=Depends(verify_token)):
         .all()
     )
 
-    # Pivot into [{month, completed, cancelled, no_show, scheduled}, ...]
+    # Hash-table pivot: defaultdict(lambda: {...}) auto-initialises a fresh status
+    # dict per month key.  The lambda — rather than a shared mutable default — ensures
+    # each key gets its own independent dict.  Lookup and insertion are O(1) average,
+    # so the full pivot over n query rows is O(n).  A nested loop approach would be
+    # O(n × s) where s = number of statuses; the dict makes that unnecessary.
     pivot = defaultdict(lambda: {'completed': 0, 'cancelled': 0, 'no-show': 0, 'scheduled': 0})
     for r in rows:
         if r.month:

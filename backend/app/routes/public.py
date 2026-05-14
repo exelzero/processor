@@ -30,8 +30,25 @@ def _normalize_phone(raw: str) -> str:
 
 
 
-def _busy_intervals(db: Session, target_date: date):
-    """Return [(start, end)] for all non-cancelled appointments on target_date."""
+def _busy_intervals(db: Session, target_date: date) -> list[tuple]:
+    """
+    Build the occupied time intervals for a given day.
+
+    Returns a list of (start, end) tuples — one per non-cancelled appointment.
+
+    Data structure choices:
+    - list: ordered, O(1) append, O(n) iteration — appropriate here because we
+      always scan every interval when checking for overlaps. Random access by
+      index is never needed, so a list beats a dict or set for this shape.
+    - tuple (start, end): immutable pair. Tuples are the idiomatic Python choice
+      for fixed-structure records; they use less memory than dicts and signal to
+      the reader that these two values are always paired and never mutated.
+
+    Trade-off: O(n) overlap scan per candidate slot. Acceptable because the
+    maximum appointments per day is ~9 (single esthetician capacity). For a
+    multi-practitioner system, an interval tree (O(log n) lookup) would be the
+    right upgrade.
+    """
     day_start = datetime.combine(target_date, time.min)
     day_end   = datetime.combine(target_date, time(23, 59, 59, 999999))
     existing  = (
@@ -44,7 +61,8 @@ def _busy_intervals(db: Session, target_date: date):
         )
         .all()
     )
-    intervals = []
+    # List of immutable (start, end) tuples — append is O(1), iteration is O(n)
+    intervals: list[tuple] = []
     for appt in existing:
         if appt.service is None:
             continue
