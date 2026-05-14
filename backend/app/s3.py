@@ -18,9 +18,13 @@ boto3 client vs resource:
   resource — higher-level ORM-like wrapper.  Useful for bucket-level iteration
               but adds overhead we don't need for simple CRUD.
 """
+import logging
 import os
 import boto3
 from botocore.config import Config
+from botocore.exceptions import ClientError, EndpointConnectionError
+
+log = logging.getLogger(__name__)
 
 S3_ENDPOINT_URL = os.getenv("S3_ENDPOINT_URL", "http://localhost:9000")
 S3_ACCESS_KEY   = os.getenv("S3_ACCESS_KEY",   "minioadmin")
@@ -55,11 +59,19 @@ def ensure_bucket() -> None:
     client = get_s3_client()
     try:
         client.head_bucket(Bucket=S3_BUCKET)
-    except client.exceptions.NoSuchBucket:
-        client.create_bucket(Bucket=S3_BUCKET)
-    except Exception:
-        # head_bucket raises ClientError with 404 on MinIO when bucket absent
-        try:
+    except EndpointConnectionError:
+        # S3/MinIO is not reachable at startup — warn and continue.
+        # The app starts successfully; uploads will fail with a clear error
+        # until the storage backend comes online.
+        log.warning("S3 endpoint unreachable at startup — document upload will be unavailable until MinIO/S3 is running")
+    except ClientError as e:
+        # head_bucket raises ClientError, not NoSuchBucket — check the HTTP code.
+        # 404 → bucket absent, create it.
+        # 409 → bucket exists but owned by this account (MinIO race).
+        # Anything else (403 auth) → re-raise so startup fails loudly rather than
+        # silently proceeding to a state where every upload fails.
+        code = e.response["Error"]["Code"]
+        if code in ("404", "NoSuchBucket"):
             client.create_bucket(Bucket=S3_BUCKET)
-        except Exception:
-            pass  # bucket already exists or permissions prevent creation
+        elif code != "409":
+            raise

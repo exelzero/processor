@@ -20,7 +20,9 @@ Presigned URLs:
   the HMAC signature embedded in the URL's query string — no separate auth
   header needed.  Expiry is enforced server-side by S3.
 """
+import re
 import uuid
+import urllib.parse
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from fastapi.responses import RedirectResponse
@@ -38,6 +40,20 @@ router = APIRouter()
 
 PRESIGN_TTL_SECONDS = 3600  # presigned URL expires after 1 hour
 MAX_FILE_SIZE = 20 * 1024 * 1024  # 20 MB hard limit
+
+
+def _content_disposition(filename: str) -> str:
+    """Build a safe Content-Disposition header value (RFC 6266 / RFC 5987).
+
+    Two parts:
+      filename=  — ASCII fallback for old clients; special chars replaced with _.
+      filename*= — UTF-8 percent-encoded name for modern clients (RFC 5987).
+    Both are needed: some clients only read the first, some prefer the second.
+    """
+    ascii_name = re.sub(r'[^\x20-\x7e]', '_', filename)   # strip non-ASCII
+    ascii_name = ascii_name.replace('"', '_').replace('\\', '_')  # no quotes/backslash
+    encoded = urllib.parse.quote(filename, safe='')
+    return f'attachment; filename="{ascii_name}"; filename*=UTF-8\'\'{encoded}'
 
 
 class DocumentOut(BaseModel):
@@ -61,20 +77,39 @@ def upload_document(
     """Upload a file and attach it to a patient record.
 
     UploadFile wraps a SpooledTemporaryFile — data below 1 MB lives in memory,
-    above that it spills to disk.  file.read() streams the spool; we pass the
-    file object directly to boto3 so S3 receives a streaming body rather than a
-    single large bytes object in RAM.
+    above that it spills to disk.  We read in 64 KB chunks, enforcing the size
+    limit incrementally so an oversized upload is rejected before the full body
+    is buffered.  The assembled bytes object is then passed to put_object().
     """
     if not db.get(Patient, patient_id):
         raise HTTPException(status_code=404, detail="Patient not found")
+
+    # UploadFile.filename is Optional[str] — None when the multipart part has
+    # no filename parameter.  Reject early so we never store None in the DB or
+    # produce an s3_key like "patients/1/abc_None".
+    if not file.filename:
+        raise HTTPException(status_code=422, detail="Upload must include a filename")
 
     # file.read() is a coroutine — it must be awaited in an async def handler.
     # This handler is sync (def), so it runs in a worker thread via
     # anyio.to_thread.run_sync.  In that context, use file.file.read() to
     # access the underlying SpooledTemporaryFile synchronously.
-    data = file.file.read()
-    if len(data) > MAX_FILE_SIZE:
-        raise HTTPException(status_code=413, detail="File exceeds 20 MB limit")
+    #
+    # Read in 64 KB chunks and check the running total against MAX_FILE_SIZE
+    # before accumulating each chunk.  This way a 2 GB upload is rejected after
+    # reading ~20 MB rather than after buffering the entire payload into RAM.
+    _CHUNK = 64 * 1024
+    chunks: list[bytes] = []
+    total = 0
+    while True:
+        chunk = file.file.read(_CHUNK)
+        if not chunk:
+            break
+        total += len(chunk)
+        if total > MAX_FILE_SIZE:
+            raise HTTPException(status_code=413, detail="File exceeds 20 MB limit")
+        chunks.append(chunk)
+    data = b"".join(chunks)
 
     s3_key = f"patients/{patient_id}/{uuid.uuid4().hex}_{file.filename}"
     content_type = file.content_type or "application/octet-stream"
@@ -139,8 +174,12 @@ def download_document(
         Params={
             "Bucket": S3_BUCKET,
             "Key": doc.s3_key,
-            # Content-Disposition tells the browser to save with the original filename.
-            "ResponseContentDisposition": f'attachment; filename="{doc.filename}"',
+            # Content-Disposition with RFC 5987 encoding.
+            # Interpolating doc.filename directly into the quoted string allows
+            # header injection via filenames containing `"`, `\r`, or `\n`.
+            # ascii_name strips non-ASCII for the legacy filename= fallback;
+            # filename*= carries the percent-encoded UTF-8 name for modern clients.
+            "ResponseContentDisposition": _content_disposition(doc.filename),
         },
         ExpiresIn=PRESIGN_TTL_SECONDS,
     )
