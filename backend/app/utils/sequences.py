@@ -25,7 +25,7 @@ def find_missing_one(nums: list[int]) -> int:
     XOR avoids integer overflow risk and works without knowing n in advance.
     """
     result = 0
-    for i in range(1, len(nums) + 2):   # XOR expected range [1..n+1]
+    for i in range(1, len(nums) + 2):   # XOR expected range [1..n] (n = full permutation size)
         result ^= i
     for x in nums:                       # XOR actual values — duplicates cancel
         result ^= x
