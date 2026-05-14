@@ -60,6 +60,9 @@ def revenue_by_service(db: Session = Depends(get_db), _=Depends(verify_token)):
 
 @router.get("/revenue-by-month")
 def revenue_by_month(db: Session = Depends(get_db), _=Depends(verify_token)):
+    from datetime import date
+    current_year = str(date.today().year)
+
     appt_rows = (
         db.query(
             func.substr(cast(Appointment.scheduled_at, String), 1, 7).label('month'),
@@ -67,7 +70,10 @@ def revenue_by_month(db: Session = Depends(get_db), _=Depends(verify_token)):
             func.count(Appointment.id).label('count'),
         )
         .join(Service, Appointment.service_id == Service.id)
-        .filter(Appointment.status == 'completed')
+        .filter(
+            Appointment.status == 'completed',
+            func.substr(cast(Appointment.scheduled_at, String), 1, 4) == current_year,
+        )
         .group_by(func.substr(cast(Appointment.scheduled_at, String), 1, 7))
         .all()
     )
@@ -76,16 +82,19 @@ def revenue_by_month(db: Session = Depends(get_db), _=Depends(verify_token)):
             func.substr(cast(Sale.sale_date, String), 1, 7).label('month'),
             func.sum(Sale.total).label('revenue'),
         )
-        .filter(Sale.status.in_(['completed', 'partially_refunded']))
+        .filter(
+            Sale.status.in_(['completed', 'partially_refunded']),
+            func.substr(cast(Sale.sale_date, String), 1, 4) == current_year,
+        )
         .group_by(func.substr(cast(Sale.sale_date, String), 1, 7))
         .all()
     )
-
     expense_rows = (
         db.query(
             func.substr(cast(Expense.expense_date, String), 1, 7).label('month'),
             func.sum(Expense.amount).label('expenses'),
         )
+        .filter(func.substr(cast(Expense.expense_date, String), 1, 4) == current_year)
         .group_by(func.substr(cast(Expense.expense_date, String), 1, 7))
         .all()
     )

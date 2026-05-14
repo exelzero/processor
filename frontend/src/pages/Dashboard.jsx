@@ -63,7 +63,7 @@ export default function Dashboard() {
       {/* Revenue vs Expenses by month — two-line comparison chart */}
       <div className="bg-white border border-stone-200 rounded-xl p-6 mb-6">
         <h3 className="text-sm font-medium text-stone-500 uppercase tracking-wider mb-4">
-          Revenue vs Expenses
+          Revenue vs Expenses — Year to Date
         </h3>
         {monthChartData.length > 0 ? (
           <ResponsiveContainer width="100%" height={240}>
