@@ -20,8 +20,13 @@ export default function Login() {
       const { data } = await api.post('/auth/login', form)
       localStorage.setItem('token', data.access_token)
       navigate('/dashboard')
-    } catch {
-      setError('Invalid credentials')
+    } catch (err) {
+      // 401 = wrong credentials; anything else (500, network) = server problem
+      setError(
+        err.response?.status === 401
+          ? 'Invalid username or password.'
+          : 'Unable to sign in. Please try again.'
+      )
     } finally {
       setLoading(false)
     }

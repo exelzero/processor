@@ -1,3 +1,11 @@
+/**
+ * Root layout for all authenticated pages.
+ *
+ * Renders a fixed left sidebar with brand identity and navigation links,
+ * and a scrollable main content area where child routes are mounted via
+ * React Router's <Outlet>. Adding a new top-level page only requires
+ * adding an entry to the `nav` array and a corresponding <Route> in App.jsx.
+ */
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import { LayoutDashboard, Users, CalendarDays, Sparkles, LogOut } from 'lucide-react'
 
