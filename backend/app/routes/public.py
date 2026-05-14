@@ -167,6 +167,11 @@ def get_available_dates(
         .all()
     )
 
+    # defaultdict(list) is a hash table whose __missing__ hook calls the factory
+    # (list) instead of raising KeyError — each new date key auto-initialises to
+    # an empty list so appending never requires an explicit existence check.
+    # O(1) average insert and lookup; collisions are resolved by open-addressing
+    # (CPython implementation detail, not part of the language spec).
     busy_by_date = defaultdict(list)
     for appt in all_appts:
         if appt.service is None:
@@ -298,7 +303,11 @@ def book_appointment(request: Request, data: BookIn, db: Session = Depends(get_d
         if scheduled_at < b_end and slot_end > b_start:
             raise HTTPException(status_code=409, detail='This time slot is no longer available. Please choose another.')
 
-    # Phone-based patient lookup (normalize format before matching).
+    # Hash table key canonicalization: strip non-digits before the lookup so
+    # every format variant of the same number ("(555) 123-4567", "5551234567",
+    # "+15551234567") resolves to the same key.  Python dicts and SQL indexes
+    # hash (or sort) on the stored bytes — if format varies between write and
+    # read the lookup misses even though the number is logically identical.
     # Phone is the identity key — if a number matches an existing patient
     # the booking is attached to that record regardless of name/email provided.
     phone_clean = _normalize_phone(data.phone)
