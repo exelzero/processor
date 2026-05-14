@@ -92,8 +92,9 @@ export default function Expenses() {
       setFormError('Category, description, amount and date are required.')
       return
     }
-    if (parseFloat(form.amount) <= 0) {
-      setFormError('Amount must be greater than zero.')
+    const amt = parseFloat(form.amount)
+    if (isNaN(amt) || amt <= 0) {
+      setFormError('Amount must be a number greater than zero.')
       return
     }
     setSaving(true)
@@ -101,7 +102,7 @@ export default function Expenses() {
       const payload = {
         category: form.category,
         description: form.description,
-        amount: parseFloat(form.amount),
+        amount: amt,
         expense_date: form.expense_date,
         notes: form.notes || null,
       }
@@ -113,7 +114,12 @@ export default function Expenses() {
       setPanelOpen(false)
       load({ category: filterCat || undefined, month: filterMonth || undefined })
     } catch (e) {
-      setFormError(e.response?.data?.detail ?? e.message)
+      const detail = e.response?.data?.detail
+      setFormError(
+        Array.isArray(detail)
+          ? detail.map(d => d.msg).join('; ')
+          : detail ?? e.message
+      )
     } finally {
       setSaving(false)
     }

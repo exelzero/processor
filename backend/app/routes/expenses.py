@@ -33,6 +33,7 @@ class ExpenseIn(BaseModel):
 
 class ExpenseOut(ExpenseIn):
     id: int
+    amount: float  # Decimal serializes as string in JSON; override to float for the response
     created_at: str
 
     model_config = {"from_attributes": True}
