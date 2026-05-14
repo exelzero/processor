@@ -59,6 +59,15 @@ class AdjustmentIn(BaseModel):
     delta: int   # positive = add, negative = remove (damage, shrinkage, count fix)
     notes: Optional[str] = None
 
+    @field_validator("delta")
+    @classmethod
+    def delta_nonzero_bounded(cls, v: int) -> int:
+        if v == 0:
+            raise ValueError("delta cannot be zero")
+        if abs(v) > 10_000:
+            raise ValueError("delta magnitude cannot exceed 10,000")
+        return v
+
 
 @router.get('/', response_model=List[ProductOut])
 def list_products(active_only: bool = False, db: Session = Depends(get_db), _=Depends(verify_token)):
@@ -128,7 +137,7 @@ def list_movements(product_id: int, db: Session = Depends(get_db), _=Depends(ver
 @router.post('/{product_id}/order', response_model=ProductOut, status_code=201)
 def place_order(product_id: int, data: OrderIn, db: Session = Depends(get_db), _=Depends(verify_token)):
     """Mark units as on order — paid, awaiting delivery."""
-    product = db.get(Product, product_id)
+    product = db.get(Product, product_id, with_for_update=True)
     if not product:
         raise HTTPException(status_code=404, detail='Product not found')
     product.stock_on_order += data.quantity
@@ -147,7 +156,7 @@ def place_order(product_id: int, data: OrderIn, db: Session = Depends(get_db), _
 @router.post('/{product_id}/receive', response_model=ProductOut, status_code=201)
 def receive_order(product_id: int, data: OrderIn, db: Session = Depends(get_db), _=Depends(verify_token)):
     """Move units from on-order to on-shelf when the delivery arrives."""
-    product = db.get(Product, product_id)
+    product = db.get(Product, product_id, with_for_update=True)
     if not product:
         raise HTTPException(status_code=404, detail='Product not found')
     if data.quantity > product.stock_on_order:
@@ -172,11 +181,9 @@ def receive_order(product_id: int, data: OrderIn, db: Session = Depends(get_db),
 @router.post('/{product_id}/adjust', response_model=ProductOut, status_code=201)
 def adjust_stock(product_id: int, data: AdjustmentIn, db: Session = Depends(get_db), _=Depends(verify_token)):
     """Manual correction — positive adds, negative removes (damage, shrinkage, count fix)."""
-    product = db.get(Product, product_id)
+    product = db.get(Product, product_id, with_for_update=True)
     if not product:
         raise HTTPException(status_code=404, detail='Product not found')
-    if data.delta == 0:
-        raise HTTPException(status_code=400, detail='delta cannot be zero')
     new_qty = product.stock_qty + data.delta
     if new_qty < 0:
         raise HTTPException(status_code=400, detail=f'Adjustment would result in negative stock ({new_qty})')

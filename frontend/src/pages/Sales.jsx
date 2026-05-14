@@ -491,7 +491,9 @@ function ProductsTab() {
   }
 
   function openStockPanel(mode, product) {
-    setStockPanel({ mode, product })
+    // Re-read from live products state so the summary reflects the latest stock figures.
+    const fresh = products.find(p => p.id === product.id) ?? product
+    setStockPanel({ mode, product: fresh })
     setStockQty('')
     setStockNotes('')
     setStockError('')
@@ -499,7 +501,9 @@ function ProductsTab() {
 
   async function handleStockAction() {
     const qty = parseInt(stockQty, 10)
+    const isOrderOrReceive = stockPanel.mode === 'order' || stockPanel.mode === 'receive'
     if (isNaN(qty) || qty === 0) { setStockError('Enter a valid non-zero quantity.'); return }
+    if (isOrderOrReceive && qty < 1) { setStockError('Quantity must be at least 1.'); return }
     setStockSaving(true)
     setStockError('')
     try {
