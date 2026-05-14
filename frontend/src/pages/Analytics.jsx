@@ -141,7 +141,7 @@ export default function Analytics() {
   }
 
   function applyCustomRange() {
-    if (customStart && customEnd) {
+    if (customStart && customEnd && customEnd >= customStart) {
       setDateRange({ start: customStart, end: customEnd })
     }
   }
@@ -230,7 +230,8 @@ export default function Analytics() {
               />
               <button
                 onClick={applyCustomRange}
-                disabled={!customStart || !customEnd}
+                disabled={!customStart || !customEnd || customEnd < customStart}
+                title={customStart && customEnd && customEnd < customStart ? 'End date must be after start date' : undefined}
                 className="px-3 py-1.5 bg-stone-800 text-white rounded-lg text-xs font-medium hover:bg-stone-700 transition-colors disabled:opacity-40"
               >
                 Apply

@@ -2,7 +2,7 @@ from collections import defaultdict
 from datetime import date, datetime, time
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
@@ -19,6 +19,8 @@ WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
 def _date_filter(query, start: Optional[date], end: Optional[date]):
     """Restrict Appointment.scheduled_at to [start, end] inclusive."""
+    if start and end and end < start:
+        raise HTTPException(status_code=400, detail="`end` must be >= `start`")
     if start:
         query = query.filter(Appointment.scheduled_at >= datetime.combine(start, time.min))
     if end:
@@ -44,7 +46,8 @@ def revenue_trend(
         .filter(Appointment.status == 'completed')
     )
     q = _date_filter(q, start, end)
-    rows = q.group_by(func.strftime('%Y-%m', Appointment.scheduled_at)).order_by(func.strftime('%Y-%m', Appointment.scheduled_at)).all()
+    month_expr = func.strftime('%Y-%m', Appointment.scheduled_at)
+    rows = q.group_by(month_expr).order_by(month_expr).all()
     data = [{'month': r.month, 'revenue': round(r.revenue, 2), 'count': r.count} for r in rows if r.month]
     avg = round(sum(r['revenue'] for r in data) / len(data), 2) if data else 0
     return {'by_month': data, 'avg_monthly_revenue': avg}
@@ -219,24 +222,28 @@ def client_insights(
             cumulative += r.new_clients
             growth.append({'month': r.month, 'new_clients': r.new_clients, 'cumulative': cumulative})
 
-    # Skin types — among patients who had an appointment in the range
+    # Skin types — patients who had any appointment in the range (all statuses;
+    # skin type is a demographic, not limited to completed visits)
     appt_in_range_q = db.query(Appointment.patient_id).distinct()
     if start_dt:
         appt_in_range_q = appt_in_range_q.filter(Appointment.scheduled_at >= start_dt)
     if end_dt:
         appt_in_range_q = appt_in_range_q.filter(Appointment.scheduled_at <= end_dt)
-    patient_ids_in_range = appt_in_range_q.subquery()
+    appt_in_range_subq = appt_in_range_q.subquery()
     skin_rows = (
         db.query(Patient.skin_type, func.count(Patient.id).label('count'))
-        .filter(Patient.id.in_(patient_ids_in_range))
+        .join(appt_in_range_subq, Patient.id == appt_in_range_subq.c.patient_id)
         .group_by(Patient.skin_type)
         .order_by(func.count(Patient.id).desc())
         .all()
     )
     skin_types = [{'skin_type': r.skin_type or 'Unknown', 'count': r.count} for r in skin_rows]
 
-    # Retention — visits per patient within the range
-    retention_q = db.query(Appointment.patient_id, func.count(Appointment.id).label('visits'))
+    # Retention — completed visits per patient within the range
+    retention_q = (
+        db.query(Appointment.patient_id, func.count(Appointment.id).label('visits'))
+        .filter(Appointment.status == 'completed')
+    )
     if start_dt:
         retention_q = retention_q.filter(Appointment.scheduled_at >= start_dt)
     if end_dt:
