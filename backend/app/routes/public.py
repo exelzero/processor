@@ -375,6 +375,20 @@ def book_appointment(request: Request, data: BookIn, db: Session = Depends(get_d
     # transaction commits or rolls back, then re-reads the now-committed rows
     # before deciding whether to proceed.  This is a database-level mutex; the
     # application-level LRU cache invalidation handles cache freshness separately.
+    #
+    # Variants (not used here, but relevant for higher-concurrency systems):
+    #   .with_for_update(nowait=True)       — raises immediately if any row is
+    #                                         already locked (emits FOR UPDATE NOWAIT).
+    #                                         Useful when you'd rather return a 409
+    #                                         than queue the request.
+    #   .with_for_update(skip_locked=True)  — silently skips locked rows (FOR UPDATE
+    #                                         SKIP LOCKED).  Useful for job-queue
+    #                                         workers that should grab any free row
+    #                                         rather than wait for a specific one.
+    # SQLite does not support FOR UPDATE in any mode — with_for_update() is a
+    # silent no-op on SQLite regardless of WAL setting.  The lock fires correctly
+    # on Postgres and MySQL.  In this app the race guard relies on SQLite's
+    # process-level GIL and single-writer WAL serialisation rather than row locks.
     conflicts = (
         db.query(Appointment)
         .options(joinedload(Appointment.service))

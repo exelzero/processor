@@ -26,9 +26,24 @@ class Appointment(Base):
     # Column(Integer) pattern and lets mypy catch mismatches between Python code
     # and the DB schema at analysis time rather than at runtime.
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
+
+    # index=True on FK columns — query optimization.
+    # SQLAlchemy creates a B-tree index for each.  Without an index, any JOIN or
+    # filter on patient_id / service_id requires a full table scan: O(n) per lookup.
+    # With the index, the DB resolves each FK lookup in O(log n) using the B-tree.
+    # Cost: ~10-20 % write overhead (index must be updated on every INSERT/UPDATE/
+    # DELETE).  Worth it for FK columns since they appear in JOIN ON clauses on
+    # nearly every analytical query in this codebase.
     patient_id: Mapped[int] = mapped_column(ForeignKey("patients.id"), index=True)
     service_id: Mapped[int] = mapped_column(ForeignKey("services.id"), index=True)
-    scheduled_at: Mapped[datetime] = mapped_column(DateTime)
+
+    # index=True on scheduled_at — the most-filtered column in this table.
+    # Every availability check, calendar view, and analytics group-by touches
+    # scheduled_at in a range predicate (WHERE scheduled_at BETWEEN x AND y) or
+    # an ORDER BY.  A B-tree index on a datetime column satisfies both: range
+    # scans walk a contiguous leaf segment, and ORDER BY can read index pages
+    # in order without a sort step.
+    scheduled_at: Mapped[datetime] = mapped_column(DateTime, index=True)
     status: Mapped[str] = mapped_column(String(20), default="scheduled")
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())

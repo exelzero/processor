@@ -17,6 +17,11 @@ class Patient(Base):
     # the Python Optional lived in separate places.
     first_name: Mapped[str] = mapped_column(String(100))
     last_name: Mapped[str] = mapped_column(String(100))
+    # unique=True creates a UNIQUE constraint backed by a single B-tree index.
+    # index=True on the same column does not create a second index — SQLAlchemy's
+    # DDL emitter deduplicates them, so there is no extra write overhead.
+    # The combination is a documentation choice: unique=True signals the
+    # constraint, index=True signals the lookup optimisation intent.
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
     phone: Mapped[str] = mapped_column(String(20))
     date_of_birth: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
