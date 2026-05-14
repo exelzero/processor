@@ -12,6 +12,8 @@ from app.models.appointment import Appointment
 from app.models.patient import Patient
 from app.models.service import Service
 from app.limiter import limiter
+from app.utils.lru_cache import LRUCache
+from app.utils.intervals_cache import intervals_cache as _intervals_cache
 
 router = APIRouter()
 
@@ -37,6 +39,12 @@ def _busy_intervals(db: Session, target_date: date) -> list[tuple]:
 
     Returns a list of (start, end) tuples — one per non-cancelled appointment.
 
+    Results are cached in _intervals_cache (LRU, capacity 14) keyed by the
+    ISO date string.  Cache hit: O(1) — no DB round-trip.  Cache miss: one
+    SELECT with a joinedload, results stored and returned.  The entry is
+    invalidated by any write path that modifies appointment data (booking,
+    admin create/update/cancel/delete) so the cache never serves stale data.
+
     Data structure choices:
     - list: ordered, O(1) append, O(n) iteration — appropriate here because we
       always scan every interval when checking for overlaps. Random access by
@@ -50,6 +58,11 @@ def _busy_intervals(db: Session, target_date: date) -> list[tuple]:
     multi-practitioner system, an interval tree (O(log n) lookup) would be the
     right upgrade.
     """
+    cache_key = target_date.isoformat()
+    cached = _intervals_cache.get(cache_key)
+    if cached is not LRUCache.MISSING:
+        return cached  # [] is a valid hit — a fully-free day is still worth caching
+
     day_start = datetime.combine(target_date, time.min)
     day_end   = datetime.combine(target_date, time(23, 59, 59, 999999))
     existing  = (
@@ -69,6 +82,8 @@ def _busy_intervals(db: Session, target_date: date) -> list[tuple]:
             continue
         end = appt.scheduled_at + timedelta(minutes=appt.service.duration_minutes + BUFFER_MINUTES)
         intervals.append((appt.scheduled_at, end))
+
+    _intervals_cache.put(cache_key, intervals)
     return intervals
 
 
@@ -405,6 +420,9 @@ def book_appointment(request: Request, data: BookIn, db: Session = Depends(get_d
     )
     db.add(appointment)
     db.commit()
+    # Invalidate immediately after commit — before db.refresh() — so a transient
+    # error on refresh cannot leave a committed appointment invisible in the cache.
+    _intervals_cache.invalidate(scheduled_at.date().isoformat())
     db.refresh(appointment)
 
     return {

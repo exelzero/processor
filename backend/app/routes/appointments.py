@@ -7,6 +7,7 @@ from datetime import datetime
 from app.database import get_db
 from app.auth import verify_token
 from app.models.appointment import Appointment
+from app.utils.intervals_cache import intervals_cache as _intervals_cache
 
 router = APIRouter()
 
@@ -40,6 +41,7 @@ def create_appointment(data: AppointmentIn, db: Session = Depends(get_db), _=Dep
     appt = Appointment(**data.model_dump())
     db.add(appt)
     db.commit()
+    _intervals_cache.invalidate(data.scheduled_at.date().isoformat())
     db.refresh(appt)
     return _enrich(appt)
 
@@ -57,9 +59,13 @@ def update_appointment(appt_id: int, data: AppointmentIn, db: Session = Depends(
     appt = db.get(Appointment, appt_id)
     if not appt:
         raise HTTPException(status_code=404, detail="Appointment not found")
+    old_date = appt.scheduled_at.date().isoformat()
     for field, value in data.model_dump().items():
         setattr(appt, field, value)
     db.commit()
+    # Invalidate both the old and new date in case the appointment was rescheduled.
+    _intervals_cache.invalidate(old_date)
+    _intervals_cache.invalidate(data.scheduled_at.date().isoformat())
     db.refresh(appt)
     return _enrich(appt)
 
@@ -71,6 +77,7 @@ def update_status(appt_id: int, status: str, db: Session = Depends(get_db), _=De
         raise HTTPException(status_code=404, detail="Appointment not found")
     appt.status = status
     db.commit()
+    _intervals_cache.invalidate(appt.scheduled_at.date().isoformat())
     return {"id": appt_id, "status": status}
 
 
@@ -79,5 +86,7 @@ def delete_appointment(appt_id: int, db: Session = Depends(get_db), _=Depends(ve
     appt = db.get(Appointment, appt_id)
     if not appt:
         raise HTTPException(status_code=404, detail="Appointment not found")
+    date_key = appt.scheduled_at.date().isoformat()
     db.delete(appt)
     db.commit()
+    _intervals_cache.invalidate(date_key)
