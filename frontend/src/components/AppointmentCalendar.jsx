@@ -83,6 +83,11 @@ export default function AppointmentCalendar({ appointments, onSelectSlot, onSele
 
   const events = useMemo(() => appointments.map(toCalendarEvent), [appointments])
 
+  const handleSelectEvent = useCallback(
+    (event) => onSelectEvent(event.resource),
+    [onSelectEvent]
+  )
+
   const eventPropGetter = useCallback((event) => {
     const { bg, border, text } = colorForCategory(event.resource?.service_category)
     return {
@@ -113,7 +118,7 @@ export default function AppointmentCalendar({ appointments, onSelectSlot, onSele
         max={MAX_TIME}
         selectable
         onSelectSlot={onSelectSlot}
-        onSelectEvent={event => onSelectEvent(event.resource)}
+        onSelectEvent={handleSelectEvent}
         eventPropGetter={eventPropGetter}
         components={CALENDAR_COMPONENTS}
         popup
