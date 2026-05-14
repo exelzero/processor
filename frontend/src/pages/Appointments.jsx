@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { LayoutList, CalendarDays } from 'lucide-react'
 import { useAppointments } from '../hooks/useAppointments'
 import PageHeader from '../components/PageHeader'
@@ -14,17 +14,15 @@ import api from '../api'
  *
  * Two tabs let Oksana switch between:
  *   Calendar — week view (default), color-coded by service category.
- *              Click an empty slot to book, click a block to edit.
+ *              Click an empty slot to book; click a block to view details.
  *   List     — filterable table for bulk status updates and quick scanning.
  *
- * The booking/edit SlidePanel is shared between both views — opening it
- * from the calendar pre-fills the date and time from the clicked slot.
- *
- * Patient and service dropdowns are loaded lazily on first panel open
- * to avoid unnecessary API calls on every page visit.
+ * The SlidePanel has two modes:
+ *   view — read-only appointment details with Edit / Delete actions
+ *   form — create new or edit existing appointment
  */
 
-const STATUS_FILTERS = ['all', 'scheduled', 'completed', 'cancelled']
+const STATUS_FILTERS = ['all', 'scheduled', 'completed', 'cancelled', 'no-show']
 
 const EMPTY_FORM = {
   patient_id: '', service_id: '', scheduled_at: '', status: 'scheduled', notes: '',
@@ -39,39 +37,45 @@ export default function Appointments() {
   // List filter
   const [filterStatus, setFilterStatus] = useState('all')
 
-  // Panel state
-  const [panelOpen, setPanelOpen] = useState(false)
-  const [form, setForm] = useState(EMPTY_FORM)
-  const [editId, setEditId] = useState(null)
-  const [saving, setSaving] = useState(false)
+  // Panel state — 'closed' | 'view' | 'form'
+  const [panelMode, setPanelMode] = useState('closed')
+  const [viewAppt, setViewAppt]   = useState(null)   // appointment shown in view mode
+  const [form, setForm]           = useState(EMPTY_FORM)
+  const [editId, setEditId]       = useState(null)
+  const [saving, setSaving]       = useState(false)
+  const [deleting, setDeleting]   = useState(false)
   const [saveError, setSaveError] = useState('')
 
-  // Dropdown data — fetched once on first panel open, then reused
+  // Dropdown data — loaded on page mount so they're ready before any panel opens
   const [patients, setPatients] = useState([])
   const [services, setServices] = useState([])
-  const [dropdownsLoaded, setDropdownsLoaded] = useState(false)
 
-  async function loadDropdowns() {
-    if (dropdownsLoaded) return
-    const [p, s] = await Promise.all([api.get('/patients/'), api.get('/services/')])
-    setPatients(p.data)
-    setServices(s.data)
-    setDropdownsLoaded(true)
-  }
+  useEffect(() => {
+    Promise.all([api.get('/patients/'), api.get('/services/')])
+      .then(([p, s]) => {
+        setPatients(p.data)
+        setServices(s.data)
+      })
+      .catch(err => console.error('Failed to load dropdowns:', err))
+  }, [])
 
   // --- Panel helpers ---
 
-  function openNew(slotInfo = null) {
-    // When called from the calendar, slotInfo.start is the clicked time slot
-    const prefilledTime = slotInfo?.start ? toDatetimeLocal(slotInfo.start.toISOString()) : ''
-    setForm({ ...EMPTY_FORM, scheduled_at: prefilledTime })
-    setEditId(null)
+  function closePanel() {
+    setPanelMode('closed')
+    setViewAppt(null)
     setSaveError('')
-    loadDropdowns()
-    setPanelOpen(true)
   }
 
-  function openEdit(appt) {
+  // Calendar block click → read-only detail view
+  function openView(appt) {
+    setViewAppt(appt)
+    setSaveError('')
+    setPanelMode('view')
+  }
+
+  // "Edit" button inside view panel, or Edit link in list row
+  function openEditForm(appt) {
     setForm({
       patient_id: String(appt.patient_id),
       service_id: String(appt.service_id),
@@ -81,8 +85,16 @@ export default function Appointments() {
     })
     setEditId(appt.id)
     setSaveError('')
-    loadDropdowns()
-    setPanelOpen(true)
+    setPanelMode('form')
+  }
+
+  // New Appointment button or empty calendar slot click
+  function openNew(slotInfo = null) {
+    const prefilledTime = slotInfo?.start ? toDatetimeLocal(slotInfo.start.toISOString()) : ''
+    setForm({ ...EMPTY_FORM, scheduled_at: prefilledTime })
+    setEditId(null)
+    setSaveError('')
+    setPanelMode('form')
   }
 
   // --- CRUD ---
@@ -99,7 +111,7 @@ export default function Appointments() {
     }
     try {
       editId ? await update(editId, payload) : await create(payload)
-      setPanelOpen(false)
+      closePanel()
     } catch (err) {
       setSaveError(err.response?.data?.detail ?? 'Something went wrong. Please try again.')
     } finally {
@@ -109,7 +121,16 @@ export default function Appointments() {
 
   async function handleDelete(id) {
     if (!confirm('Delete this appointment?')) return
-    await remove(id)
+    setDeleting(true)
+    setSaveError('')
+    try {
+      await remove(id)
+      closePanel()
+    } catch (err) {
+      setSaveError(err.response?.data?.detail ?? 'Failed to delete appointment.')
+    } finally {
+      setDeleting(false)
+    }
   }
 
   const filtered = filterStatus === 'all'
@@ -131,7 +152,7 @@ export default function Appointments() {
         <AppointmentCalendar
           appointments={appointments}
           onSelectSlot={openNew}
-          onSelectEvent={openEdit}
+          onSelectEvent={openView}
         />
       )}
 
@@ -176,7 +197,7 @@ export default function Appointments() {
                   />
                 </td>
                 <td className="px-5 py-3.5 text-right space-x-3">
-                  <button onClick={() => openEdit(a)} className="text-stone-400 hover:text-stone-700 text-xs">Edit</button>
+                  <button onClick={() => openEditForm(a)} className="text-stone-400 hover:text-stone-700 text-xs">Edit</button>
                   <button onClick={() => handleDelete(a.id)} className="text-stone-400 hover:text-red-500 text-xs">Delete</button>
                 </td>
               </tr>
@@ -185,10 +206,54 @@ export default function Appointments() {
         </>
       )}
 
-      {/* Booking / Edit panel — shared between both views */}
+      {/* View panel — read-only appointment details */}
       <SlidePanel
-        open={panelOpen}
-        onClose={() => setPanelOpen(false)}
+        open={panelMode === 'view'}
+        onClose={closePanel}
+        title="Appointment Details"
+      >
+        {viewAppt && (
+          <div className="space-y-5">
+            <DetailRow label="Patient"   value={viewAppt.patient_name} />
+            <DetailRow label="Service"   value={`${viewAppt.service_name}${viewAppt.service_price != null ? ` — ${formatCurrency(viewAppt.service_price)}` : ''}`} />
+            <DetailRow label="Date"      value={formatDate(viewAppt.scheduled_at)} />
+            <DetailRow label="Time"      value={formatTime(viewAppt.scheduled_at)} />
+            <div>
+              <p className="text-xs font-medium text-stone-500 uppercase tracking-wider mb-1.5">Status</p>
+              <StatusBadge status={viewAppt.status} />
+            </div>
+            {viewAppt.notes && (
+              <DetailRow label="Notes" value={viewAppt.notes} />
+            )}
+
+            {saveError && <p className="text-red-500 text-sm">{saveError}</p>}
+
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => openEditForm(viewAppt)}
+                disabled={deleting}
+                className="flex-1 bg-stone-800 text-white rounded-lg py-2.5 text-sm font-medium hover:bg-stone-700 transition-colors disabled:opacity-50"
+              >
+                Edit
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDelete(viewAppt.id)}
+                disabled={deleting}
+                className="px-4 py-2.5 rounded-lg text-sm font-medium text-red-500 border border-red-200 hover:bg-red-50 transition-colors disabled:opacity-50"
+              >
+                {deleting ? 'Deleting…' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        )}
+      </SlidePanel>
+
+      {/* Form panel — new appointment or edit existing */}
+      <SlidePanel
+        open={panelMode === 'form'}
+        onClose={closePanel}
         title={editId ? 'Edit Appointment' : 'New Appointment'}
       >
         <form onSubmit={handleSave} className="space-y-4">
@@ -202,7 +267,7 @@ export default function Appointments() {
             >
               <option value="">Select patient…</option>
               {patients.map(p => (
-                <option key={p.id} value={p.id}>{p.first_name} {p.last_name}</option>
+                <option key={p.id} value={String(p.id)}>{p.first_name} {p.last_name}</option>
               ))}
             </select>
           </div>
@@ -217,7 +282,7 @@ export default function Appointments() {
             >
               <option value="">Select service…</option>
               {services.map(s => (
-                <option key={s.id} value={s.id}>{s.name} — {formatCurrency(s.price)}</option>
+                <option key={s.id} value={String(s.id)}>{s.name} — {formatCurrency(s.price)}</option>
               ))}
             </select>
           </div>
@@ -243,6 +308,7 @@ export default function Appointments() {
               <option value="scheduled">Scheduled</option>
               <option value="completed">Completed</option>
               <option value="cancelled">Cancelled</option>
+              <option value="no-show">No Show</option>
             </select>
           </div>
 
@@ -267,6 +333,15 @@ export default function Appointments() {
           </button>
         </form>
       </SlidePanel>
+    </div>
+  )
+}
+
+function DetailRow({ label, value }) {
+  return (
+    <div>
+      <p className="text-xs font-medium text-stone-500 uppercase tracking-wider mb-1">{label}</p>
+      <p className="text-sm text-stone-700">{value}</p>
     </div>
   )
 }
