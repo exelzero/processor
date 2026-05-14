@@ -17,6 +17,11 @@ class Patient(Base):
     # the Python Optional lived in separate places.
     first_name: Mapped[str] = mapped_column(String(100))
     last_name: Mapped[str] = mapped_column(String(100))
+    # unique=True creates a UNIQUE constraint and implicitly a B-tree index.
+    # index=True is technically redundant here (the unique constraint already
+    # gives the DB an index to enforce uniqueness), but it makes the intent
+    # explicit in the model definition: this column is both constrained and
+    # optimised for point lookups (WHERE email = ?).
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
     phone: Mapped[str] = mapped_column(String(20))
     date_of_birth: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
