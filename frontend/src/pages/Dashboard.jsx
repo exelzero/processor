@@ -1,4 +1,4 @@
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
+import { BarChart, Bar, AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, CartesianGrid } from 'recharts'
 import { Users, CalendarCheck, DollarSign, TrendingUp } from 'lucide-react'
 import { useMetrics } from '../hooks/useMetrics'
 import StatCard from '../components/StatCard'
@@ -13,8 +13,19 @@ import { formatDate, formatTime, formatCurrency } from '../utils/format'
  * All data comes from the /api/metrics/* endpoints via the useMetrics hook,
  * which fires three requests in parallel so all panels load simultaneously.
  */
+const MONTH_LABELS = {
+  '01': 'Jan', '02': 'Feb', '03': 'Mar', '04': 'Apr',
+  '05': 'May', '06': 'Jun', '07': 'Jul', '08': 'Aug',
+  '09': 'Sep', '10': 'Oct', '11': 'Nov', '12': 'Dec',
+}
+
 export default function Dashboard() {
-  const { summary, revenueByService, upcoming, loading, error } = useMetrics()
+  const { summary, revenueByService, revenueByMonth, upcoming, loading, error } = useMetrics()
+
+  const monthChartData = revenueByMonth.map(r => ({
+    ...r,
+    label: MONTH_LABELS[r.month.split('-')[1]] ?? r.month,
+  }))
 
   // Completion rate: what percentage of all appointments were completed.
   // Guard against division by zero when the business is just starting out.
@@ -51,6 +62,53 @@ export default function Dashboard() {
           sub="from completed"
         />
         <StatCard icon={TrendingUp} label="Completion Rate" value={loading ? '—' : completionRate} />
+      </div>
+
+      {/* Revenue by month — full-width area chart */}
+      <div className="bg-white border border-stone-200 rounded-xl p-6 mb-6">
+        <h3 className="text-sm font-medium text-stone-500 uppercase tracking-wider mb-4">
+          Revenue by Month
+        </h3>
+        {monthChartData.length > 0 ? (
+          <ResponsiveContainer width="100%" height={220}>
+            <AreaChart data={monthChartData} margin={{ top: 4, right: 8, left: -10, bottom: 0 }}>
+              <defs>
+                <linearGradient id="revenueGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%"  stopColor="#292524" stopOpacity={0.15} />
+                  <stop offset="95%" stopColor="#292524" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid vertical={false} stroke="#f5f5f4" />
+              <XAxis
+                dataKey="label"
+                tick={{ fontSize: 11, fill: '#a8a29e' }}
+                tickLine={false}
+                axisLine={false}
+              />
+              <YAxis
+                tick={{ fontSize: 11, fill: '#a8a29e' }}
+                tickLine={false}
+                axisLine={false}
+                tickFormatter={v => formatCurrency(v)}
+              />
+              <Tooltip
+                formatter={(v, _name, entry) => [formatCurrency(v), `${entry.payload.count} appts`]}
+                contentStyle={{ borderRadius: 8, border: '1px solid #e7e5e4', fontSize: 12 }}
+              />
+              <Area
+                type="monotone"
+                dataKey="revenue"
+                stroke="#292524"
+                strokeWidth={2}
+                fill="url(#revenueGradient)"
+                dot={{ r: 3, fill: '#292524', strokeWidth: 0 }}
+                activeDot={{ r: 5, fill: '#292524', strokeWidth: 0 }}
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        ) : (
+          <p className="text-stone-300 text-sm">{loading ? 'Loading…' : 'No completed appointments yet'}</p>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

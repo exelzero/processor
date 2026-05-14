@@ -15,6 +15,7 @@ import api from '../api'
 export function useMetrics() {
   const [summary, setSummary] = useState(null)
   const [revenueByService, setRevenueByService] = useState([])
+  const [revenueByMonth, setRevenueByMonth] = useState([])
   const [upcoming, setUpcoming] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -23,11 +24,13 @@ export function useMetrics() {
     Promise.all([
       api.get('/metrics/summary'),
       api.get('/metrics/revenue-by-service'),
+      api.get('/metrics/revenue-by-month'),
       api.get('/metrics/upcoming'),
     ])
-      .then(([s, r, u]) => {
+      .then(([s, r, m, u]) => {
         setSummary(s.data)
-        setRevenueByService(r.data.slice(0, 6)) // cap chart at 6 bars for readability
+        setRevenueByService(r.data.slice(0, 6))
+        setRevenueByMonth(m.data)
         setUpcoming(u.data)
       })
       .catch(err => {
@@ -38,5 +41,5 @@ export function useMetrics() {
       })
   }, [])
 
-  return { summary, revenueByService, upcoming, loading, error }
+  return { summary, revenueByService, revenueByMonth, upcoming, loading, error }
 }

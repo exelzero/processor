@@ -44,6 +44,23 @@ def revenue_by_service(db: Session = Depends(get_db), _=Depends(verify_token)):
     return [{"service": r.name, "count": r.count, "revenue": round(r.revenue, 2)} for r in rows]
 
 
+@router.get("/revenue-by-month")
+def revenue_by_month(db: Session = Depends(get_db), _=Depends(verify_token)):
+    rows = (
+        db.query(
+            func.strftime('%Y-%m', Appointment.scheduled_at).label('month'),
+            func.sum(Service.price).label('revenue'),
+            func.count(Appointment.id).label('count'),
+        )
+        .join(Service, Appointment.service_id == Service.id)
+        .filter(Appointment.status == 'completed')
+        .group_by(func.strftime('%Y-%m', Appointment.scheduled_at))
+        .order_by(func.strftime('%Y-%m', Appointment.scheduled_at))
+        .all()
+    )
+    return [{"month": r.month, "revenue": round(r.revenue, 2), "count": r.count} for r in rows]
+
+
 @router.get("/upcoming")
 def upcoming(db: Session = Depends(get_db), _=Depends(verify_token)):
     from datetime import datetime
