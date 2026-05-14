@@ -2,7 +2,7 @@ from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
-from datetime import date
+from datetime import date, datetime
 
 from app.database import get_db
 from app.auth import verify_token
@@ -24,7 +24,7 @@ class PatientIn(BaseModel):
 
 class PatientOut(PatientIn):
     id: int
-    created_at: str
+    created_at: datetime
 
     model_config = {"from_attributes": True}
 
