@@ -1,4 +1,4 @@
-import { useId } from 'react'
+import { useId, useState } from 'react'
 import {
   AreaChart, Area,
   BarChart, Bar,
@@ -79,6 +79,46 @@ function Empty({ loading }) {
   )
 }
 
+// ── Date range helpers ────────────────────────────────────────────────────────
+function toDateStr(d) {
+  return d.toISOString().split('T')[0]
+}
+
+function ytdRange() {
+  const today = new Date()
+  return { start: `${today.getFullYear()}-01-01`, end: toDateStr(today) }
+}
+
+const PRESETS = [
+  {
+    label: 'YTD',
+    range: () => ytdRange(),
+  },
+  {
+    label: '30D',
+    range: () => {
+      const d = new Date(); d.setDate(d.getDate() - 30)
+      return { start: toDateStr(d), end: toDateStr(new Date()) }
+    },
+  },
+  {
+    label: '90D',
+    range: () => {
+      const d = new Date(); d.setDate(d.getDate() - 90)
+      return { start: toDateStr(d), end: toDateStr(new Date()) }
+    },
+  },
+  {
+    label: '6M',
+    range: () => {
+      const d = new Date(); d.setMonth(d.getMonth() - 6)
+      return { start: toDateStr(d), end: toDateStr(new Date()) }
+    },
+  },
+  { label: 'All',    range: () => ({ start: null, end: null }) },
+  { label: 'Custom', range: null },
+]
+
 // ── Custom Tooltip helpers ────────────────────────────────────────────────────
 function currencyTooltip(v) {
   return [formatCurrency(v), 'Revenue']
@@ -86,7 +126,30 @@ function currencyTooltip(v) {
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 export default function Analytics() {
-  const { revenueTrend, categoryMix, statusTrend, schedulePatterns, servicePerf, clientInsights, loading, error } = useAnalytics()
+  const [activePreset, setActivePreset] = useState('YTD')
+  const [dateRange, setDateRange]       = useState(ytdRange)
+  const [customStart, setCustomStart]   = useState('')
+  const [customEnd, setCustomEnd]       = useState('')
+
+  function applyPreset(preset) {
+    setActivePreset(preset.label)
+    if (preset.range) {
+      const range = preset.range()
+      setDateRange(range)
+    }
+    // 'Custom' — keep current dateRange until both inputs are filled
+  }
+
+  function applyCustomRange() {
+    if (customStart && customEnd) {
+      setDateRange({ start: customStart, end: customEnd })
+    }
+  }
+
+  const { revenueTrend, categoryMix, statusTrend, schedulePatterns, servicePerf, clientInsights, loading, error } = useAnalytics({
+    startDate: dateRange.start,
+    endDate:   dateRange.end,
+  })
   const gradientId = useId()
 
   if (error) {
@@ -97,6 +160,7 @@ export default function Analytics() {
       </div>
     )
   }
+
 
   // Derived values
   const totalRevenue = revenueTrend.by_month.reduce((s, r) => s + r.revenue, 0)
@@ -128,7 +192,59 @@ export default function Analytics() {
 
   return (
     <div className="p-8">
-      <h1 className="text-xl font-light text-stone-800 mb-6 tracking-wide">Analytics</h1>
+      <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+        <h1 className="text-xl font-light text-stone-800 tracking-wide">Analytics</h1>
+
+        {/* Date range picker */}
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-1 bg-stone-100 rounded-lg p-1">
+            {PRESETS.map(preset => (
+              <button
+                key={preset.label}
+                onClick={() => applyPreset(preset)}
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                  activePreset === preset.label
+                    ? 'bg-white text-stone-800 shadow-sm'
+                    : 'text-stone-500 hover:text-stone-700'
+                }`}
+              >
+                {preset.label}
+              </button>
+            ))}
+          </div>
+
+          {activePreset === 'Custom' && (
+            <div className="flex items-center gap-2">
+              <input
+                type="date"
+                value={customStart}
+                onChange={e => setCustomStart(e.target.value)}
+                className="border border-stone-200 rounded-lg px-2.5 py-1.5 text-xs text-stone-700 focus:outline-none focus:ring-2 focus:ring-stone-300"
+              />
+              <span className="text-stone-300 text-xs">→</span>
+              <input
+                type="date"
+                value={customEnd}
+                onChange={e => setCustomEnd(e.target.value)}
+                className="border border-stone-200 rounded-lg px-2.5 py-1.5 text-xs text-stone-700 focus:outline-none focus:ring-2 focus:ring-stone-300"
+              />
+              <button
+                onClick={applyCustomRange}
+                disabled={!customStart || !customEnd}
+                className="px-3 py-1.5 bg-stone-800 text-white rounded-lg text-xs font-medium hover:bg-stone-700 transition-colors disabled:opacity-40"
+              >
+                Apply
+              </button>
+            </div>
+          )}
+
+          {dateRange.start && activePreset !== 'Custom' && (
+            <span className="text-xs text-stone-400">
+              {dateRange.start} → {dateRange.end ?? 'today'}
+            </span>
+          )}
+        </div>
+      </div>
 
       {/* ── KPI Strip ───────────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
