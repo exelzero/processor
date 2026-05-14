@@ -12,6 +12,7 @@ export default function Patients() {
   const [form, setForm] = useState(empty)
   const [editId, setEditId] = useState(null)
   const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState('')
 
   useEffect(() => { load() }, [])
 
@@ -20,22 +21,26 @@ export default function Patients() {
     setPatients(data)
   }
 
-  function openNew() { setForm(empty); setEditId(null); setShowForm(true) }
+  function openNew() { setForm(empty); setEditId(null); setSaveError(''); setShowForm(true) }
   function openEdit(p) {
     setForm({ ...p, date_of_birth: p.date_of_birth?.slice(0, 10) ?? '' })
     setEditId(p.id)
+    setSaveError('')
     setShowForm(true)
   }
 
   async function save(e) {
     e.preventDefault()
     setSaving(true)
+    setSaveError('')
     const payload = { ...form, date_of_birth: form.date_of_birth || null }
     try {
       if (editId) await api.put(`/patients/${editId}`, payload)
       else await api.post('/patients/', payload)
       await load()
       setShowForm(false)
+    } catch (err) {
+      setSaveError(err.response?.data?.detail ?? 'Something went wrong. Please try again.')
     } finally {
       setSaving(false)
     }
@@ -124,6 +129,7 @@ export default function Patients() {
                 <label className="block text-xs font-medium text-stone-500 uppercase tracking-wider mb-1.5">Notes</label>
                 <textarea value={form.notes} onChange={e => setForm(f => ({...f, notes: e.target.value}))} rows={3} className="w-full border border-stone-200 rounded-lg px-3 py-2.5 text-sm text-stone-700 focus:outline-none focus:ring-2 focus:ring-stone-300 resize-none" />
               </div>
+              {saveError && <p className="text-red-500 text-sm">{saveError}</p>}
               <button type="submit" disabled={saving} className="w-full bg-stone-800 text-white rounded-lg py-2.5 text-sm font-medium hover:bg-stone-700 transition-colors disabled:opacity-50 mt-2">
                 {saving ? 'Saving…' : editId ? 'Update Patient' : 'Create Patient'}
               </button>

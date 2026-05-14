@@ -11,6 +11,7 @@ export default function Services() {
   const [form, setForm] = useState(empty)
   const [editId, setEditId] = useState(null)
   const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState('')
 
   useEffect(() => { load() }, [])
 
@@ -19,18 +20,21 @@ export default function Services() {
     setServices(data)
   }
 
-  function openNew() { setForm(empty); setEditId(null); setShowForm(true) }
-  function openEdit(s) { setForm({ ...s, price: String(s.price), duration_minutes: String(s.duration_minutes) }); setEditId(s.id); setShowForm(true) }
+  function openNew() { setForm(empty); setEditId(null); setSaveError(''); setShowForm(true) }
+  function openEdit(s) { setForm({ ...s, price: String(s.price), duration_minutes: String(s.duration_minutes) }); setEditId(s.id); setSaveError(''); setShowForm(true) }
 
   async function save(e) {
     e.preventDefault()
     setSaving(true)
+    setSaveError('')
     const payload = { ...form, price: parseFloat(form.price), duration_minutes: parseInt(form.duration_minutes) }
     try {
       if (editId) await api.put(`/services/${editId}`, payload)
       else await api.post('/services/', payload)
       await load()
       setShowForm(false)
+    } catch (err) {
+      setSaveError(err.response?.data?.detail ?? 'Something went wrong. Please try again.')
     } finally {
       setSaving(false)
     }
@@ -110,6 +114,7 @@ export default function Services() {
                 <input type="checkbox" checked={form.active} onChange={e => setForm(f => ({...f, active: e.target.checked}))} className="rounded" />
                 <span className="text-sm text-stone-600">Active</span>
               </label>
+              {saveError && <p className="text-red-500 text-sm">{saveError}</p>}
               <button type="submit" disabled={saving} className="w-full bg-stone-800 text-white rounded-lg py-2.5 text-sm font-medium hover:bg-stone-700 transition-colors disabled:opacity-50 mt-2">
                 {saving ? 'Saving…' : editId ? 'Update Service' : 'Create Service'}
               </button>

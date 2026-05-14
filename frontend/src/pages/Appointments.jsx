@@ -18,6 +18,7 @@ export default function Appointments() {
   const [form, setForm] = useState(empty)
   const [editId, setEditId] = useState(null)
   const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState('')
   const [filterStatus, setFilterStatus] = useState('all')
 
   useEffect(() => {
@@ -31,7 +32,7 @@ export default function Appointments() {
     setAppointments(data)
   }
 
-  function openNew() { setForm(empty); setEditId(null); setShowForm(true) }
+  function openNew() { setForm(empty); setEditId(null); setSaveError(''); setShowForm(true) }
   function openEdit(a) {
     const dt = new Date(a.scheduled_at)
     const local = new Date(dt.getTime() - dt.getTimezoneOffset() * 60000).toISOString().slice(0, 16)
@@ -43,12 +44,15 @@ export default function Appointments() {
   async function save(e) {
     e.preventDefault()
     setSaving(true)
+    setSaveError('')
     const payload = { ...form, patient_id: parseInt(form.patient_id), service_id: parseInt(form.service_id), scheduled_at: new Date(form.scheduled_at).toISOString() }
     try {
       if (editId) await api.put(`/appointments/${editId}`, payload)
       else await api.post('/appointments/', payload)
       await load()
       setShowForm(false)
+    } catch (err) {
+      setSaveError(err.response?.data?.detail ?? 'Something went wrong. Please try again.')
     } finally {
       setSaving(false)
     }
@@ -171,6 +175,7 @@ export default function Appointments() {
                 <textarea value={form.notes} onChange={e => setForm(f => ({...f, notes: e.target.value}))} rows={3}
                   className="w-full border border-stone-200 rounded-lg px-3 py-2.5 text-sm text-stone-700 focus:outline-none focus:ring-2 focus:ring-stone-300 resize-none" />
               </div>
+              {saveError && <p className="text-red-500 text-sm">{saveError}</p>}
               <button type="submit" disabled={saving} className="w-full bg-stone-800 text-white rounded-lg py-2.5 text-sm font-medium hover:bg-stone-700 transition-colors disabled:opacity-50 mt-2">
                 {saving ? 'Saving…' : editId ? 'Update Appointment' : 'Book Appointment'}
               </button>
