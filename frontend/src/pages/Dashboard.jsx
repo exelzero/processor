@@ -61,7 +61,7 @@ export default function Dashboard() {
           icon={DollarSign}
           label="Revenue"
           value={loading ? '—' : formatCurrency(summary?.total_revenue)}
-          sub="from completed"
+          sub="services + product sales"
         />
         <StatCard icon={TrendingUp} label="Completion Rate" value={loading ? '—' : completionRate} />
       </div>
@@ -180,6 +180,7 @@ export default function Dashboard() {
           )}
         </div>
       </div>
+
     </div>
   )
 }

@@ -10,6 +10,7 @@ from app.auth import verify_token
 from app.models.sale import Sale, SaleItem, SaleReturn
 from app.models.product import Product
 from app.models.promotion import Promotion
+from app.models.stock_movement import StockMovement
 
 router = APIRouter()
 
@@ -189,15 +190,18 @@ def create_sale(data: SaleIn, db: Session = Depends(get_db), _=Depends(verify_to
     if not data.items:
         raise HTTPException(status_code=400, detail='Sale must include at least one item')
 
-    # Build line items and compute subtotal
+    # Build line items and compute subtotal.
+    # with_for_update acquires row-level locks (effective on PostgreSQL; no-op on SQLite).
     sale_items = []
+    products_by_id: dict = {}
     subtotal = 0.0
     for item_in in data.items:
-        product = db.get(Product, item_in.product_id)
+        product = db.get(Product, item_in.product_id, with_for_update=True)
         if not product:
             raise HTTPException(status_code=404, detail=f'Product {item_in.product_id} not found')
         if not product.active:
             raise HTTPException(status_code=400, detail=f'Product "{product.name}" is no longer available')
+        products_by_id[item_in.product_id] = product
         line_total = round(product.price * item_in.quantity, 2)
         subtotal += line_total
         sale_items.append(SaleItem(
@@ -245,6 +249,16 @@ def create_sale(data: SaleIn, db: Session = Depends(get_db), _=Depends(verify_to
     for item in sale_items:
         item.sale_id = sale.id
         db.add(item)
+        # Deduct from on-shelf stock. Allow negative (oversell) so the sale isn't blocked — the UI shows a low-stock warning.
+        product = products_by_id[item.product_id]
+        product.stock_qty -= item.quantity
+        db.add(StockMovement(
+            product_id=item.product_id,
+            movement_type="sale",
+            qty_delta=-item.quantity,
+            on_order_delta=0,
+            reference_id=sale.id,
+        ))
     db.commit()
 
     sale = _load_sale(db, sale.id)
@@ -282,7 +296,27 @@ def create_return(sale_id: int, data: ReturnIn, db: Session = Depends(get_db), _
     db.add(ret)
 
     total_returned = already_returned + data.amount
-    sale.status = 'refunded' if total_returned >= sale.total else 'partially_refunded'
+    is_full_refund = total_returned >= sale.total
+    sale.status = 'refunded' if is_full_refund else 'partially_refunded'
+
+    # On a full refund put all items back into stock.
+    # Partial returns are financial-only — we don't know which units came back.
+    if is_full_refund:
+        product_ids = [item.product_id for item in sale.items]
+        refund_products = {
+            p.id: p for p in
+            db.query(Product).filter(Product.id.in_(product_ids)).with_for_update().all()
+        }
+        for item in sale.items:
+            product = refund_products[item.product_id]
+            product.stock_qty += item.quantity
+            db.add(StockMovement(
+                product_id=item.product_id,
+                movement_type="return",
+                qty_delta=item.quantity,
+                on_order_delta=0,
+                reference_id=sale.id,
+            ))
     db.commit()
 
     sale = _load_sale(db, sale_id)
