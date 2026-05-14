@@ -231,17 +231,21 @@ def _find_available_slots(
     At single-practitioner scale the difference is negligible, but the pattern
     applies directly to high-volume scheduling systems.
     """
-    if not busy:
-        slots = []
-        candidate = open_dt
-        while candidate + slot_duration <= close_dt:
-            slots.append(candidate.strftime('%H:%M'))
-            candidate += timedelta(minutes=SLOT_MINUTES)
-        return slots
+    # Merge overlapping intervals so the two-index proof holds.
+    # The binary search invariant "only p-1 and p can overlap [c, c+d)" is only
+    # correct when intervals are disjoint.  Two appointments can produce
+    # overlapping busy intervals (different start times, different durations),
+    # so we merge before building the parallel arrays.
+    sorted_busy: list[tuple] = sorted(busy, key=lambda x: x[0])
+    merged: list[tuple] = [sorted_busy[0]] if sorted_busy else []
+    for s, e in sorted_busy[1:]:
+        if s < merged[-1][1]:                              # overlaps previous
+            merged[-1] = (merged[-1][0], max(merged[-1][1], e))
+        else:
+            merged.append((s, e))
 
-    sorted_busy  = sorted(busy, key=lambda x: x[0])
-    busy_starts  = [s for s, _ in sorted_busy]
-    busy_ends    = [e for _, e in sorted_busy]
+    busy_starts = [s for s, _ in merged]
+    busy_ends   = [e for _, e in merged]
 
     slots     = []
     candidate = open_dt
