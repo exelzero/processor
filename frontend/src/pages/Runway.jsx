@@ -1,7 +1,7 @@
 import {
   BarChart, Bar,
   LineChart, Line,
-  XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine,
+  XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, Legend,
   ResponsiveContainer, Cell,
 } from 'recharts'
 import { useRunway } from '../hooks/useRunway'
@@ -116,6 +116,7 @@ export default function Runway() {
     : data.is_profitable                        ? 'green'
     : data.months_of_runway !== null && data.months_of_runway <= 3  ? 'red'
     : data.months_of_runway !== null && data.months_of_runway <= 6  ? 'amber'
+    : data.months_of_runway === null            ? undefined
     : 'red'
 
   // Mark where cash goes below zero in the forecast
@@ -141,7 +142,7 @@ export default function Runway() {
         <KpiCard
           label="Avg Monthly Revenue"
           value={loading ? '—' : formatCurrency(data.monthly_avg_revenue)}
-          sub={loading ? undefined : `avg net +${formatCurrency(data.monthly_avg_net)}/mo`}
+          sub={loading ? undefined : `avg net ${data.monthly_avg_net >= 0 ? '+' : ''}${formatCurrency(data.monthly_avg_net)}/mo`}
         />
         <KpiCard
           label="Runway"
@@ -289,6 +290,7 @@ export default function Runway() {
                 contentStyle={TOOLTIP_STYLE}
                 formatter={(v, name) => [formatCurrency(v), name === 'revenue' ? 'Revenue' : 'Expenses']}
               />
+              <Legend iconType="square" iconSize={10} wrapperStyle={{ fontSize: 11, color: '#a8a29e' }} formatter={v => v === 'revenue' ? 'Revenue' : 'Expenses'} />
               <Bar dataKey="revenue"  fill={STONE}   radius={[4, 4, 0, 0]} name="revenue"  />
               <Bar dataKey="expenses" fill={STONE_3} radius={[4, 4, 0, 0]} name="expenses" />
             </BarChart>

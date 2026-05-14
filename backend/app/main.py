@@ -67,7 +67,7 @@ app.include_router(sales.router, prefix="/api/sales", tags=["sales"])
 app.include_router(public.router, prefix="/api/public", tags=["public"])
 app.include_router(documents.router, prefix="/api/patients/{patient_id}/documents", tags=["documents"])
 app.include_router(expenses.router, prefix="/api/expenses", tags=["expenses"])
-app.include_router(runway.router,   prefix="/api/runway",   tags=["runway"])
+app.include_router(runway.router, prefix="/api/runway", tags=["runway"])
 
 
 @app.get("/api/health")

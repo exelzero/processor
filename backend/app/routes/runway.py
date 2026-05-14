@@ -151,7 +151,7 @@ def runway(db: Session = Depends(get_db), _=Depends(verify_token)):
 
     is_profitable = monthly_avg_net >= 0
     months_of_runway = (
-        None if is_profitable or burn_rate == 0
+        None if is_profitable or burn_rate == 0 or current_cash <= 0
         else round(current_cash / burn_rate, 1)
     )
 
