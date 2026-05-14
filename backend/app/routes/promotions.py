@@ -59,6 +59,11 @@ def create_promotion(data: PromotionIn, db: Session = Depends(get_db), _=Depends
 @router.get('/validate/{code}')
 def validate_code(code: str, subtotal: float = 0, db: Session = Depends(get_db), _=Depends(verify_token)):
     """Look up a promo code and return discount info, or 404 if invalid/expired."""
+    # Canonicalize before every store and every lookup: codes are always uppercased
+    # so the index key is consistent.  SQL = is case-sensitive on SQLite; querying
+    # 'summer10' against a stored 'SUMMER10' would be a cache miss even though
+    # they represent the same code.  Canonicalization is the same principle as
+    # phone normalization — bring the key to a known form before hashing it.
     promo = db.query(Promotion).filter(Promotion.code == code.upper()).first()
     if not promo or not promo.active:
         raise HTTPException(status_code=404, detail='Invalid or inactive promo code')
