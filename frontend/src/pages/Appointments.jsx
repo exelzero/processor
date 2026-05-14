@@ -43,6 +43,7 @@ export default function Appointments() {
   const [form, setForm]           = useState(EMPTY_FORM)
   const [editId, setEditId]       = useState(null)
   const [saving, setSaving]       = useState(false)
+  const [deleting, setDeleting]   = useState(false)
   const [saveError, setSaveError] = useState('')
 
   // Dropdown data — loaded on page mount so they're ready before any panel opens
@@ -55,12 +56,16 @@ export default function Appointments() {
         setPatients(p.data)
         setServices(s.data)
       })
-      .catch(() => {})
+      .catch(err => console.error('Failed to load dropdowns:', err))
   }, [])
 
   // --- Panel helpers ---
 
-  function closePanel() { setPanelMode('closed') }
+  function closePanel() {
+    setPanelMode('closed')
+    setViewAppt(null)
+    setSaveError('')
+  }
 
   // Calendar block click → read-only detail view
   function openView(appt) {
@@ -116,8 +121,16 @@ export default function Appointments() {
 
   async function handleDelete(id) {
     if (!confirm('Delete this appointment?')) return
-    await remove(id)
-    closePanel()
+    setDeleting(true)
+    setSaveError('')
+    try {
+      await remove(id)
+      closePanel()
+    } catch (err) {
+      setSaveError(err.response?.data?.detail ?? 'Failed to delete appointment.')
+    } finally {
+      setDeleting(false)
+    }
   }
 
   const filtered = filterStatus === 'all'
@@ -202,7 +215,7 @@ export default function Appointments() {
         {viewAppt && (
           <div className="space-y-5">
             <DetailRow label="Patient"   value={viewAppt.patient_name} />
-            <DetailRow label="Service"   value={`${viewAppt.service_name} — ${formatCurrency(viewAppt.service_price)}`} />
+            <DetailRow label="Service"   value={`${viewAppt.service_name}${viewAppt.service_price != null ? ` — ${formatCurrency(viewAppt.service_price)}` : ''}`} />
             <DetailRow label="Date"      value={formatDate(viewAppt.scheduled_at)} />
             <DetailRow label="Time"      value={formatTime(viewAppt.scheduled_at)} />
             <div>
@@ -213,20 +226,24 @@ export default function Appointments() {
               <DetailRow label="Notes" value={viewAppt.notes} />
             )}
 
+            {saveError && <p className="text-red-500 text-sm">{saveError}</p>}
+
             <div className="flex gap-2 pt-2">
               <button
                 type="button"
                 onClick={() => openEditForm(viewAppt)}
-                className="flex-1 bg-stone-800 text-white rounded-lg py-2.5 text-sm font-medium hover:bg-stone-700 transition-colors"
+                disabled={deleting}
+                className="flex-1 bg-stone-800 text-white rounded-lg py-2.5 text-sm font-medium hover:bg-stone-700 transition-colors disabled:opacity-50"
               >
                 Edit
               </button>
               <button
                 type="button"
                 onClick={() => handleDelete(viewAppt.id)}
-                className="px-4 py-2.5 rounded-lg text-sm font-medium text-red-500 border border-red-200 hover:bg-red-50 transition-colors"
+                disabled={deleting}
+                className="px-4 py-2.5 rounded-lg text-sm font-medium text-red-500 border border-red-200 hover:bg-red-50 transition-colors disabled:opacity-50"
               >
-                Delete
+                {deleting ? 'Deleting…' : 'Delete'}
               </button>
             </div>
           </div>
