@@ -663,7 +663,7 @@ function ProductsTab() {
         title={
           stockPanel?.mode === 'order'   ? `Order Stock — ${stockPanel.product.name}`   :
           stockPanel?.mode === 'receive' ? `Receive Order — ${stockPanel.product.name}` :
-                                           `Adjust Stock — ${stockPanel.product.name}`
+          stockPanel                     ? `Adjust Stock — ${stockPanel.product.name}`  : ''
         }
       >
         {stockPanel && (
