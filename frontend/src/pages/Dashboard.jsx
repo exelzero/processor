@@ -35,8 +35,8 @@ export default function Dashboard() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <StatCard icon={Users} label="Patients" value={summary?.total_patients ?? '—'} />
         <StatCard icon={CalendarCheck} label="Appointments" value={summary?.total_appointments ?? '—'} sub={`${summary?.completed_appointments ?? 0} completed`} />
-        <StatCard icon={DollarSign} label="Revenue" value={summary ? `$${summary.total_revenue.toLocaleString()}` : '—'} sub="from completed" />
-        <StatCard icon={TrendingUp} label="Completion Rate" value={summary ? `${Math.round((summary.completed_appointments / (summary.total_appointments || 1)) * 100)}%` : '—'} />
+        <StatCard icon={DollarSign} label="Revenue" value={summary ? `$${(summary.total_revenue ?? 0).toLocaleString()}` : '—'} sub="from completed" />
+        <StatCard icon={TrendingUp} label="Completion Rate" value={summary && summary.total_appointments > 0 ? `${Math.round((summary.completed_appointments / summary.total_appointments) * 100)}%` : '0%'} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
