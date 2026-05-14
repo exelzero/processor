@@ -257,15 +257,18 @@ def sequence_gaps(db: Session = Depends(get_db), _=Depends(verify_token)):
     appt_ids    = [r[0] for r in db.query(Appointment.id).all()]
     patient_ids = [r[0] for r in db.query(Patient.id).all()]
 
+    appt_gaps    = find_gaps(appt_ids)
+    patient_gaps = find_gaps(patient_ids)
+
     return {
         'appointments': {
             'total':    len(appt_ids),
-            'gaps':     find_gaps(appt_ids),
-            'gap_count': len(find_gaps(appt_ids)),
+            'gaps':      appt_gaps,
+            'gap_count': len(appt_gaps),
         },
         'patients': {
             'total':    len(patient_ids),
-            'gaps':     find_gaps(patient_ids),
-            'gap_count': len(find_gaps(patient_ids)),
+            'gaps':      patient_gaps,
+            'gap_count': len(patient_gaps),
         },
     }
