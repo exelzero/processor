@@ -1,0 +1,149 @@
+/*
+ * react-big-calendar overrides — matches the Processor stone/minimal UI.
+ * Only overrides specific tokens; the base layout CSS is still loaded from
+ * the library so structural changes to RBC don't break our styles.
+ */
+
+/* Toolbar (navigation + view buttons) */
+.rbc-toolbar {
+  padding: 14px 16px;
+  border-bottom: 1px solid #e7e5e4;
+  margin-bottom: 0;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.rbc-toolbar button {
+  color: #78716c;
+  border: 1px solid #e7e5e4;
+  border-radius: 8px;
+  font-size: 13px;
+  padding: 5px 12px;
+  background: white;
+  transition: all 0.15s;
+}
+
+.rbc-toolbar button:hover {
+  background: #f5f5f4;
+  color: #292524;
+  border-color: #d6d3d1;
+}
+
+.rbc-toolbar button.rbc-active {
+  background: #292524;
+  color: white;
+  border-color: #292524;
+  box-shadow: none;
+}
+
+.rbc-toolbar-label {
+  font-size: 15px;
+  font-weight: 500;
+  color: #292524;
+  letter-spacing: -0.01em;
+}
+
+/* Header row (Mon 5, Tue 6 …) */
+.rbc-header {
+  font-size: 12px;
+  font-weight: 500;
+  color: #a8a29e;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 8px 0;
+  border-bottom: 1px solid #e7e5e4;
+  border-left-color: #e7e5e4;
+}
+
+/* Time gutter labels */
+.rbc-time-slot .rbc-label {
+  font-size: 11px;
+  color: #a8a29e;
+}
+
+/* Grid lines */
+.rbc-time-content,
+.rbc-time-header-content {
+  border-left: 1px solid #e7e5e4;
+}
+
+.rbc-timeslot-group {
+  border-bottom: 1px solid #f5f5f4;
+  min-height: 48px;
+}
+
+.rbc-time-slot {
+  border-top: none;
+}
+
+.rbc-day-slot .rbc-time-slot {
+  border-top: 1px dashed #f5f5f4;
+}
+
+.rbc-current-time-indicator {
+  background-color: #f43f5e;
+  height: 2px;
+}
+
+.rbc-current-time-indicator::before {
+  background-color: #f43f5e;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-top: -3px;
+}
+
+/* Today column highlight */
+.rbc-today {
+  background: #fafaf9;
+}
+
+/* Month view date cells */
+.rbc-date-cell {
+  font-size: 12px;
+  color: #78716c;
+  padding: 4px 8px;
+}
+
+.rbc-date-cell.rbc-now {
+  font-weight: 600;
+  color: #292524;
+}
+
+/* Off-range days in month view */
+.rbc-off-range-bg {
+  background: #fafaf9;
+}
+
+/* Selected slot highlight */
+.rbc-slot-selection {
+  background: rgba(41, 37, 36, 0.06);
+  border: 1px solid #d6d3d1;
+}
+
+/* Event blocks — base (overridden per-event by eventPropGetter) */
+.rbc-event {
+  border: none;
+  box-shadow: none;
+  outline: none;
+}
+
+.rbc-event:focus {
+  outline: 2px solid #a8a29e;
+  outline-offset: 1px;
+}
+
+/* Agenda view */
+.rbc-agenda-view table {
+  font-size: 13px;
+}
+
+.rbc-agenda-date-cell,
+.rbc-agenda-time-cell {
+  color: #78716c;
+  font-size: 12px;
+}
+
+.rbc-agenda-event-cell {
+  color: #292524;
+}
