@@ -385,8 +385,10 @@ def book_appointment(request: Request, data: BookIn, db: Session = Depends(get_d
     #                                         SKIP LOCKED).  Useful for job-queue
     #                                         workers that should grab any free row
     #                                         rather than wait for a specific one.
-    # SQLite supports FOR UPDATE only when WAL mode is enabled; without it this
-    # call is a no-op on SQLite but emits correctly on Postgres and MySQL.
+    # SQLite does not support FOR UPDATE in any mode — with_for_update() is a
+    # silent no-op on SQLite regardless of WAL setting.  The lock fires correctly
+    # on Postgres and MySQL.  In this app the race guard relies on SQLite's
+    # process-level GIL and single-writer WAL serialisation rather than row locks.
     conflicts = (
         db.query(Appointment)
         .options(joinedload(Appointment.service))
