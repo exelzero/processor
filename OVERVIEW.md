@@ -429,4 +429,4 @@ python scripts/seed.py          # safe to run once after first startup
 python scripts/seed.py --force  # wipe and re-seed
 ```
 
-[`seed.py`](./scripts/seed.py) creates 10 services, ~60 patients, months of appointment history, products, sales, expenses, and stock movements — everything needed to see the full system in action.
+[`seed.py`](./scripts/seed.py) creates 10 services, 500 patients, 32 products, 10 promotions, months of appointment and sales history, expenses, and stock movements — everything needed to see the full system in action.
