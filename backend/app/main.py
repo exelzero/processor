@@ -36,8 +36,8 @@ from slowapi.errors import RateLimitExceeded
 from app.limiter import limiter
 
 from app.database import engine, Base
-from app.models import patient, service, appointment, product, promotion, sale, document  # noqa: F401 — registers models
-from app.routes import auth, patients, services, appointments, metrics, analytics, products, promotions, sales, public, documents
+from app.models import patient, service, appointment, product, promotion, sale, document, expense  # noqa: F401 — registers models
+from app.routes import auth, patients, services, appointments, metrics, analytics, products, promotions, sales, public, documents, expenses
 from app.s3 import ensure_bucket
 
 Base.metadata.create_all(bind=engine)
@@ -66,6 +66,7 @@ app.include_router(promotions.router, prefix="/api/promotions", tags=["promotion
 app.include_router(sales.router, prefix="/api/sales", tags=["sales"])
 app.include_router(public.router, prefix="/api/public", tags=["public"])
 app.include_router(documents.router, prefix="/api/patients/{patient_id}/documents", tags=["documents"])
+app.include_router(expenses.router, prefix="/api/expenses", tags=["expenses"])
 
 
 @app.get("/api/health")

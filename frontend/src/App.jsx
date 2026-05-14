@@ -18,6 +18,7 @@ import Appointments from './pages/Appointments'
 import Services from './pages/Services'
 import Analytics from './pages/Analytics'
 import Sales from './pages/Sales'
+import Expenses from './pages/Expenses'
 import Book from './pages/Book'
 
 function PrivateRoute({ children }) {
@@ -37,6 +38,7 @@ export default function App() {
         <Route path="services" element={<Services />} />
         <Route path="analytics" element={<Analytics />} />
         <Route path="sales" element={<Sales />} />
+        <Route path="expenses" element={<Expenses />} />
       </Route>
     </Routes>
   )

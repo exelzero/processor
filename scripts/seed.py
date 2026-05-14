@@ -21,6 +21,7 @@ from app.models.appointment import Appointment
 from app.models.product import Product
 from app.models.promotion import Promotion
 from app.models.sale import Sale, SaleItem, SaleReturn
+from app.models.expense import Expense
 
 Base.metadata.create_all(bind=engine)
 
@@ -491,6 +492,108 @@ def seed(force: bool = False):
 
         db.commit()
         print(f"Seeded {sale_count} sales with {return_count} returns.")
+
+        # -------------------------------------------------------------------
+        # Expenses
+        # -------------------------------------------------------------------
+        # Cover the same ~8-month window as appointments (roughly Sep–Apr)
+        expense_count = 0
+        FIRST_MONTH = date(TODAY.year - 1, 9, 1) if TODAY.month < 9 else date(TODAY.year, 9, 1)
+
+        # Fixed monthly recurring expenses (same amount, 1st of each month)
+        fixed_monthly = [
+            ("Rent",                    "Studio lease — monthly rent",              3500.00),
+            ("Insurance",               "Business liability insurance premium",       210.00),
+            ("Software & Subscriptions","Square POS monthly subscription",             60.00),
+            ("Software & Subscriptions","Booking platform (Vagaro) monthly fee",       90.00),
+        ]
+
+        # Variable monthly expenses (amount varies ±20%)
+        variable_monthly = [
+            ("Utilities",           "Electricity & water",                  380.0),
+            ("Utilities",           "Internet & phone",                     120.0),
+            ("Cleaning",            "Studio deep-clean service",            180.0),
+            ("Marketing",           "Instagram/Facebook ad spend",          250.0),
+        ]
+
+        # Irregular supply orders (placed ~2–3x per month, varying amounts)
+        supply_items = [
+            ("Products & Supplies", "HydraFacial serums & tips restock",    320.0),
+            ("Products & Supplies", "Chemical peel solution restock",        180.0),
+            ("Products & Supplies", "Retail skincare inventory (Environ)",   540.0),
+            ("Products & Supplies", "Disposables: gloves, masks, linens",    95.0),
+            ("Products & Supplies", "Exosome growth factor vials",          420.0),
+            ("Products & Supplies", "Towels & spa accessories",              75.0),
+        ]
+
+        # One-off equipment purchases (sprinkled across months)
+        equipment_events = [
+            (2,  "Equipment",  "Nano-needling pen replacement cartridges",  260.0),
+            (4,  "Equipment",  "LED light therapy panel",                   850.0),
+            (6,  "Equipment",  "Autoclave steriliser service",              190.0),
+        ]
+
+        month_cursor = FIRST_MONTH
+        months_seeded = 0
+        while month_cursor <= TODAY.replace(day=1):
+            # Fixed expenses on the 1st
+            for cat, desc, amt in fixed_monthly:
+                db.add(Expense(
+                    category=cat,
+                    description=desc,
+                    amount=round(amt, 2),
+                    expense_date=month_cursor,
+                ))
+                expense_count += 1
+
+            # Variable expenses — random day in first 10 days
+            for cat, desc, base in variable_monthly:
+                day = random.randint(1, 10)
+                exp_date = month_cursor.replace(day=day)
+                variance = random.uniform(0.85, 1.15)
+                db.add(Expense(
+                    category=cat,
+                    description=desc,
+                    amount=round(base * variance, 2),
+                    expense_date=exp_date,
+                ))
+                expense_count += 1
+
+            # Supply orders: 2–3 random orders per month
+            orders = random.sample(supply_items, k=random.randint(2, 3))
+            for cat, desc, base in orders:
+                day = random.randint(1, 28)
+                exp_date = month_cursor.replace(day=day)
+                variance = random.uniform(0.80, 1.20)
+                db.add(Expense(
+                    category=cat,
+                    description=desc,
+                    amount=round(base * variance, 2),
+                    expense_date=exp_date,
+                ))
+                expense_count += 1
+
+            # Equipment one-offs (month index based)
+            for mo_idx, cat, desc, amt in equipment_events:
+                if months_seeded == mo_idx:
+                    day = random.randint(5, 25)
+                    db.add(Expense(
+                        category=cat,
+                        description=desc,
+                        amount=round(amt, 2),
+                        expense_date=month_cursor.replace(day=day),
+                    ))
+                    expense_count += 1
+
+            # Next month
+            if month_cursor.month == 12:
+                month_cursor = month_cursor.replace(year=month_cursor.year + 1, month=1)
+            else:
+                month_cursor = month_cursor.replace(month=month_cursor.month + 1)
+            months_seeded += 1
+
+        db.commit()
+        print(f"Seeded {expense_count} expenses.")
         print("Done.")
 
     finally:
