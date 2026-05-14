@@ -24,6 +24,8 @@ def _enrich(appt: Appointment) -> dict:
     d["patient_name"] = f"{appt.patient.first_name} {appt.patient.last_name}" if appt.patient else None
     d["service_name"] = appt.service.name if appt.service else None
     d["service_price"] = appt.service.price if appt.service else None
+    d["service_duration_minutes"] = appt.service.duration_minutes if appt.service else 60
+    d["service_category"] = appt.service.category if appt.service else None
     return d
 
 
